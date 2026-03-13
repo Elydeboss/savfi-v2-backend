@@ -1,17 +1,15 @@
 import { Request, Response } from 'express';
+import { ZodError } from 'zod';
 import User from '../models/User';
 import { generateToken, hashPassword, comparePassword, generateReferralCode } from '../utils/auth';
+import { registerSchema, loginSchema, updateProfileSchema, changePasswordSchema, connectWalletSchema } from '../utils/validation';
 
 // Register user
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, username, password, referralCode } = req.body;
-
-    // Validate input
-    if (!email || !username || !password) {
-      res.status(400).json({ error: 'Please provide email, username, and password' });
-      return;
-    }
+    // Validate input with Zod schema
+    const validatedData = registerSchema.parse(req.body);
+    const { email, username, password, referralCode } = validatedData;
 
     // Check if user already exists
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
@@ -58,6 +56,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ error: error.issues[0].message });
+      return;
+    }
     console.error('Register error:', error);
     res.status(500).json({ error: 'Server error during registration' });
   }
@@ -66,13 +68,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 // Login user
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
-
-    // Validate input
-    if (!email || !password) {
-      res.status(400).json({ error: 'Please provide email and password' });
-      return;
-    }
+    // Validate input with Zod schema
+    const validatedData = loginSchema.parse(req.body);
+    const { email, password } = validatedData;
 
     // Find user
     const user = await User.findOne({ email });
@@ -109,6 +107,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ error: error.issues[0].message });
+      return;
+    }
     console.error('Login error:', error);
     res.status(500).json({ error: 'Server error during login' });
   }
@@ -133,7 +135,8 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
 // Update user profile
 export const updateProfile = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { phoneNumber, country, dateOfBirth, profilePicture } = req.body;
+    // Validate input with Zod schema
+    const validatedData = updateProfileSchema.parse(req.body);
 
     const user = await User.findById(req.user?.userId);
     if (!user) {
@@ -142,10 +145,11 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     }
 
     // Update allowed fields
-    if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
-    if (country !== undefined) user.country = country;
-    if (dateOfBirth !== undefined) user.dateOfBirth = new Date(dateOfBirth);
-    if (profilePicture !== undefined) user.profilePicture = profilePicture;
+    if (validatedData.username !== undefined) user.username = validatedData.username;
+    if (validatedData.phoneNumber !== undefined) user.phoneNumber = validatedData.phoneNumber;
+    if (validatedData.country !== undefined) user.country = validatedData.country;
+    if (validatedData.dateOfBirth !== undefined) user.dateOfBirth = new Date(validatedData.dateOfBirth);
+    if (validatedData.profilePicture !== undefined) user.profilePicture = validatedData.profilePicture;
 
     await user.save();
 
@@ -162,6 +166,10 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       },
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ error: error.issues[0].message });
+      return;
+    }
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -170,17 +178,9 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
 // Change password
 export const changePassword = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      res.status(400).json({ error: 'Please provide current and new password' });
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      res.status(400).json({ error: 'New password must be at least 6 characters' });
-      return;
-    }
+    // Validate input with Zod schema
+    const validatedData = changePasswordSchema.parse(req.body);
+    const { currentPassword, newPassword } = validatedData;
 
     const user = await User.findById(req.user?.userId);
     if (!user) {
@@ -201,6 +201,10 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
 
     res.status(200).json({ message: 'Password changed successfully' });
   } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ error: error.issues[0].message });
+      return;
+    }
     console.error('Change password error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -209,12 +213,9 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
 // Connect Phantom wallet
 export const connectWallet = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { walletAddress } = req.body;
-
-    if (!walletAddress) {
-      res.status(400).json({ error: 'Please provide wallet address' });
-      return;
-    }
+    // Validate input with Zod schema
+    const validatedData = connectWalletSchema.parse(req.body);
+    const { walletAddress } = validatedData;
 
     const user = await User.findById(req.user?.userId);
     if (!user) {
@@ -237,6 +238,10 @@ export const connectWallet = async (req: Request, res: Response): Promise<void> 
       walletAddress: user.phantomWallet,
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ error: error.issues[0].message });
+      return;
+    }
     console.error('Connect wallet error:', error);
     res.status(500).json({ error: 'Server error' });
   }

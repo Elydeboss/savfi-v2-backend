@@ -4,17 +4,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.connectWallet = exports.changePassword = exports.updateProfile = exports.getCurrentUser = exports.login = exports.register = void 0;
+const zod_1 = require("zod");
 const User_1 = __importDefault(require("../models/User"));
 const auth_1 = require("../utils/auth");
+const validation_1 = require("../utils/validation");
 // Register user
 const register = async (req, res) => {
     try {
-        const { email, username, password, referralCode } = req.body;
-        // Validate input
-        if (!email || !username || !password) {
-            res.status(400).json({ error: 'Please provide email, username, and password' });
-            return;
-        }
+        // Validate input with Zod schema
+        const validatedData = validation_1.registerSchema.parse(req.body);
+        const { email, username, password, referralCode } = validatedData;
         // Check if user already exists
         const existingUser = await User_1.default.findOne({ $or: [{ email }, { username }] });
         if (existingUser) {
@@ -54,6 +53,10 @@ const register = async (req, res) => {
         });
     }
     catch (error) {
+        if (error instanceof zod_1.ZodError) {
+            res.status(400).json({ error: error.issues[0].message });
+            return;
+        }
         console.error('Register error:', error);
         res.status(500).json({ error: 'Server error during registration' });
     }
@@ -62,12 +65,9 @@ exports.register = register;
 // Login user
 const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
-        // Validate input
-        if (!email || !password) {
-            res.status(400).json({ error: 'Please provide email and password' });
-            return;
-        }
+        // Validate input with Zod schema
+        const validatedData = validation_1.loginSchema.parse(req.body);
+        const { email, password } = validatedData;
         // Find user
         const user = await User_1.default.findOne({ email });
         if (!user) {
@@ -100,6 +100,10 @@ const login = async (req, res) => {
         });
     }
     catch (error) {
+        if (error instanceof zod_1.ZodError) {
+            res.status(400).json({ error: error.issues[0].message });
+            return;
+        }
         console.error('Login error:', error);
         res.status(500).json({ error: 'Server error during login' });
     }
@@ -124,21 +128,24 @@ exports.getCurrentUser = getCurrentUser;
 // Update user profile
 const updateProfile = async (req, res) => {
     try {
-        const { phoneNumber, country, dateOfBirth, profilePicture } = req.body;
+        // Validate input with Zod schema
+        const validatedData = validation_1.updateProfileSchema.parse(req.body);
         const user = await User_1.default.findById(req.user?.userId);
         if (!user) {
             res.status(404).json({ error: 'User not found' });
             return;
         }
         // Update allowed fields
-        if (phoneNumber !== undefined)
-            user.phoneNumber = phoneNumber;
-        if (country !== undefined)
-            user.country = country;
-        if (dateOfBirth !== undefined)
-            user.dateOfBirth = new Date(dateOfBirth);
-        if (profilePicture !== undefined)
-            user.profilePicture = profilePicture;
+        if (validatedData.username !== undefined)
+            user.username = validatedData.username;
+        if (validatedData.phoneNumber !== undefined)
+            user.phoneNumber = validatedData.phoneNumber;
+        if (validatedData.country !== undefined)
+            user.country = validatedData.country;
+        if (validatedData.dateOfBirth !== undefined)
+            user.dateOfBirth = new Date(validatedData.dateOfBirth);
+        if (validatedData.profilePicture !== undefined)
+            user.profilePicture = validatedData.profilePicture;
         await user.save();
         res.status(200).json({
             message: 'Profile updated successfully',
@@ -154,6 +161,10 @@ const updateProfile = async (req, res) => {
         });
     }
     catch (error) {
+        if (error instanceof zod_1.ZodError) {
+            res.status(400).json({ error: error.issues[0].message });
+            return;
+        }
         console.error('Update profile error:', error);
         res.status(500).json({ error: 'Server error' });
     }
@@ -162,15 +173,9 @@ exports.updateProfile = updateProfile;
 // Change password
 const changePassword = async (req, res) => {
     try {
-        const { currentPassword, newPassword } = req.body;
-        if (!currentPassword || !newPassword) {
-            res.status(400).json({ error: 'Please provide current and new password' });
-            return;
-        }
-        if (newPassword.length < 6) {
-            res.status(400).json({ error: 'New password must be at least 6 characters' });
-            return;
-        }
+        // Validate input with Zod schema
+        const validatedData = validation_1.changePasswordSchema.parse(req.body);
+        const { currentPassword, newPassword } = validatedData;
         const user = await User_1.default.findById(req.user?.userId);
         if (!user) {
             res.status(404).json({ error: 'User not found' });
@@ -188,6 +193,10 @@ const changePassword = async (req, res) => {
         res.status(200).json({ message: 'Password changed successfully' });
     }
     catch (error) {
+        if (error instanceof zod_1.ZodError) {
+            res.status(400).json({ error: error.issues[0].message });
+            return;
+        }
         console.error('Change password error:', error);
         res.status(500).json({ error: 'Server error' });
     }
@@ -196,11 +205,9 @@ exports.changePassword = changePassword;
 // Connect Phantom wallet
 const connectWallet = async (req, res) => {
     try {
-        const { walletAddress } = req.body;
-        if (!walletAddress) {
-            res.status(400).json({ error: 'Please provide wallet address' });
-            return;
-        }
+        // Validate input with Zod schema
+        const validatedData = validation_1.connectWalletSchema.parse(req.body);
+        const { walletAddress } = validatedData;
         const user = await User_1.default.findById(req.user?.userId);
         if (!user) {
             res.status(404).json({ error: 'User not found' });
@@ -220,6 +227,10 @@ const connectWallet = async (req, res) => {
         });
     }
     catch (error) {
+        if (error instanceof zod_1.ZodError) {
+            res.status(400).json({ error: error.issues[0].message });
+            return;
+        }
         console.error('Connect wallet error:', error);
         res.status(500).json({ error: 'Server error' });
     }

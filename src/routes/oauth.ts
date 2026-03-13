@@ -15,7 +15,7 @@ router.get(
 	}),
 	async (req: any, res) => {
 		try {
-			const token = generateToken(req.user._id, req.user.email, req.user.role);
+			const token = generateToken(req.user);
 			// Redirect to frontend with token
 			res.redirect(
 				`${process.env.FRONTEND_URL}/auth/callback?token=${token}&provider=google`

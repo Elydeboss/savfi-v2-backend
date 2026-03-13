@@ -2,6 +2,18 @@ import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { IUser } from '../models/User';
 
+// Get JWT secret with validation
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required. Please set it in your .env file.');
+  }
+  if (secret.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters long for security.');
+  }
+  return secret;
+};
+
 // Generate JWT token
 export const generateToken = (user: IUser): string => {
   const payload = {
@@ -10,20 +22,21 @@ export const generateToken = (user: IUser): string => {
     role: user.role,
   };
 
-  const secret = process.env.JWT_SECRET || 'your_jwt_secret_key_change_in_production';
+  const secret = getJwtSecret();
+  const expiresIn = process.env.JWT_EXPIRE || '7d';
 
-  return jwt.sign(payload, secret, { expiresIn: process.env.JWT_EXPIRE || '7d' } as jwt.SignOptions);
+  return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions);
 };
 
 // Verify JWT token
 export const verifyToken = (token: string): any => {
-  const secret = process.env.JWT_SECRET || 'your_jwt_secret_key_change_in_production';
+  const secret = getJwtSecret();
   return jwt.verify(token, secret);
 };
 
-// Hash password
+// Hash password (increased salt rounds for production security)
 export const hashPassword = async (password: string): Promise<string> => {
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(12); // Increased from 10 to 12 for better security
   return bcrypt.hash(password, salt);
 };
 

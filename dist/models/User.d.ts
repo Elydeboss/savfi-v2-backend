@@ -4,6 +4,19 @@ export interface IUser extends Document {
     email: string;
     username: string;
     password: string;
+    provider?: 'email' | 'google' | 'apple';
+    providerId?: string;
+    emailVerified?: boolean;
+    googleProfile?: {
+        id: string;
+        email: string;
+        name?: string;
+        picture?: string;
+    };
+    appleProfile?: {
+        id: string;
+        email?: string;
+    };
     phantomWallet?: string;
     profilePicture?: string;
     phoneNumber?: string;

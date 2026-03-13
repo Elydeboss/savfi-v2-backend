@@ -52,8 +52,30 @@ const userSchema = new mongoose_1.Schema({
     },
     password: {
         type: String,
-        required: true,
         minlength: 6,
+    },
+    provider: {
+        type: String,
+        enum: ['email', 'google', 'apple'],
+        default: 'email',
+    },
+    providerId: {
+        type: String,
+        sparse: true,
+    },
+    emailVerified: {
+        type: Boolean,
+        default: false,
+    },
+    googleProfile: {
+        id: String,
+        email: String,
+        name: String,
+        picture: String,
+    },
+    appleProfile: {
+        id: String,
+        email: String,
     },
     phantomWallet: {
         type: String,
