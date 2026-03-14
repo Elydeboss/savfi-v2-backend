@@ -166,25 +166,32 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
     res.status(404).json({ error: 'Route not found' });
 });
-// Start server
-const startServer = async () => {
-    try {
-        // Connect to MongoDB
-        await (0, database_1.default)();
-        // Start listening
-        app.listen(env_1.env.PORT, () => {
-            console.log(`🚀 Server running on port ${env_1.env.PORT}`);
-            console.log(`📝 Environment: ${env_1.env.NODE_ENV}`);
-            console.log(`🔗 API: http://localhost:${env_1.env.PORT}`);
-            console.log(`🏥 Health: http://localhost:${env_1.env.PORT}/health`);
-        });
-    }
-    catch (error) {
-        console.error('Failed to start server:', error);
-        process.exit(1);
-    }
-};
-// Handle unhandled promise rejections
+// ===== EXPORT FOR VERCEL =====
+// Export the Express app for Vercel Functions to use
+exports.default = app;
+// ===== START SERVER LOCALLY ONLY =====
+// Only start the server if NOT running on Vercel (which sets the 'VERCEL' env var)
+if (!process.env.VERCEL) {
+    const startServer = async () => {
+        try {
+            // Connect to MongoDB
+            await (0, database_1.default)();
+            // Start listening
+            app.listen(env_1.env.PORT, () => {
+                console.log(`🚀 Server running on port ${env_1.env.PORT}`);
+                console.log(`📝 Environment: ${env_1.env.NODE_ENV}`);
+                console.log(`🔗 API: http://localhost:${env_1.env.PORT}`);
+                console.log(`🏥 Health: http://localhost:${env_1.env.PORT}/health`);
+            });
+        }
+        catch (error) {
+            console.error('Failed to start server:', error);
+            process.exit(1);
+        }
+    };
+    startServer();
+}
+// Handle unhandled promise rejections (keep for all environments)
 process.on('unhandledRejection', (err) => {
     console.error('Unhandled Rejection:', err);
     process.exit(1);
@@ -193,5 +200,4 @@ process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
     process.exit(1);
 });
-startServer();
 //# sourceMappingURL=index.js.map
