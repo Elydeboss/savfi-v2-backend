@@ -180,26 +180,35 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Start server
-const startServer = async (): Promise<void> => {
-  try {
-    // Connect to MongoDB
-    await connectDB();
+// ===== EXPORT FOR VERCEL =====
+// Export the Express app for Vercel Functions to use
+export default app;
 
-    // Start listening
-    app.listen(env.PORT, () => {
-      console.log(`🚀 Server running on port ${env.PORT}`);
-      console.log(`📝 Environment: ${env.NODE_ENV}`);
-      console.log(`🔗 API: http://localhost:${env.PORT}`);
-      console.log(`🏥 Health: http://localhost:${env.PORT}/health`);
-    });
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
-};
+// ===== START SERVER LOCALLY ONLY =====
+// Only start the server if NOT running on Vercel (which sets the 'VERCEL' env var)
+if (!process.env.VERCEL) {
+  const startServer = async (): Promise<void> => {
+    try {
+      // Connect to MongoDB
+      await connectDB();
 
-// Handle unhandled promise rejections
+      // Start listening
+      app.listen(env.PORT, () => {
+        console.log(`🚀 Server running on port ${env.PORT}`);
+        console.log(`📝 Environment: ${env.NODE_ENV}`);
+        console.log(`🔗 API: http://localhost:${env.PORT}`);
+        console.log(`🏥 Health: http://localhost:${env.PORT}/health`);
+      });
+    } catch (error) {
+      console.error('Failed to start server:', error);
+      process.exit(1);
+    }
+  };
+
+  startServer();
+}
+
+// Handle unhandled promise rejections (keep for all environments)
 process.on('unhandledRejection', (err: any) => {
   console.error('Unhandled Rejection:', err);
   process.exit(1);
@@ -209,5 +218,3 @@ process.on('uncaughtException', (err: any) => {
   console.error('Uncaught Exception:', err);
   process.exit(1);
 });
-
-startServer();
