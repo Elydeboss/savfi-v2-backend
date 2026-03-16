@@ -20,6 +20,15 @@ export default async function handler(req: any, res: any) {
     // This uses connection caching, so subsequent requests are faster
     await connectToDatabase();
 
+    // Debug logging to understand request routing
+    console.log('Incoming Vercel request:', {
+      url: req.url,
+      method: req.method,
+      path: req.path,
+      originalUrl: req.originalUrl,
+      query: req.query
+    });
+
     // Handle the request with the Express app
     return app(req, res);
   } catch (error) {
