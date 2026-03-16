@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
-import connectDB from './config/database';
+import connectDB, { connectToDatabase } from './config/database';
 import { env } from './config/env';
 import authRoutes from './routes/auth';
 import oauthRoutes from './routes/oauth';
@@ -85,6 +85,28 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // Initialize Passport
 app.use(passport.initialize());
 
+// Database connection middleware for serverless (Vercel)
+// On Vercel, this runs before each API request
+// Locally, the database is already connected at startup
+app.use(async (req, res, next) => {
+  try {
+    // Skip database connection for health check on serverless
+    // Health check will connect separately
+    if (req.path === '/health' && process.env.VERCEL) {
+      return next();
+    }
+
+    // Ensure database connection exists for serverless functions
+    if (process.env.VERCEL) {
+      await connectToDatabase();
+    }
+    next();
+  } catch (error) {
+    console.error('Database connection middleware error:', error);
+    res.status(503).json({ error: 'Database connection failed' });
+  }
+});
+
 // Apply rate limiting to all API routes
 app.use('/api/', apiLimiter);
 
@@ -98,16 +120,28 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
+// Handle favicon requests - return 204 to prevent browser from retrying
+// This prevents console errors about blocked favicon requests
+app.get('/favicon.ico', (req: Request, res: Response) => {
+  res.status(204).end();
+});
+
 // Enhanced health check endpoint
 app.get('/health', async (req: Request, res: Response) => {
   try {
+    // Ensure database connection for health check (works in both local and serverless)
+    if (!process.env.VERCEL || mongoose.connection.readyState !== 1) {
+      await connectToDatabase();
+    }
+
+    const isDbConnected = mongoose.connection.readyState === 1;
     const health = {
-      status: 'healthy',
+      status: isDbConnected ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       uptime: Math.floor(process.uptime()),
       environment: env.NODE_ENV,
       database: {
-        status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        status: isDbConnected ? 'connected' : 'disconnected',
         name: mongoose.connection.name,
         host: mongoose.connection.host,
       },
@@ -119,13 +153,14 @@ app.get('/health', async (req: Request, res: Response) => {
       cpu: process.cpuUsage(),
     };
 
-    const statusCode = health.database.status === 'connected' ? 200 : 503;
+    const statusCode = isDbConnected ? 200 : 503;
     res.status(statusCode).json(health);
   } catch (error) {
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
       error: 'Health check failed',
+      database: { status: 'disconnected' },
     });
   }
 });
