@@ -2,6 +2,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import User from '../models/User';
 import { generateReferralCode } from '../utils/auth';
+import { generateWalletAddress } from '../utils/wallet';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
@@ -44,6 +45,10 @@ passport.use(
 						if (!existingUser.profilePicture && profile.photos?.[0].value) {
 							existingUser.profilePicture = profile.photos[0].value;
 						}
+						// Generate wallet if not already present
+						if (!existingUser.phantomWallet) {
+							existingUser.phantomWallet = generateWalletAddress();
+						}
 						await existingUser.save();
 						return done(null, existingUser);
 					}
@@ -57,6 +62,9 @@ passport.use(
 				// Generate referral code
 				const referralCode = generateReferralCode(username);
 
+				// Generate wallet address for the user
+				const walletAddress = generateWalletAddress();
+
 				// Create new user
 				user = await User.create({
 					email: email,
@@ -65,6 +73,7 @@ passport.use(
 					provider: 'google',
 					providerId: profile.id,
 					emailVerified: true,
+					phantomWallet: walletAddress,
 					googleProfile: {
 						id: profile.id,
 						email: email || '',

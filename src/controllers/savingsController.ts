@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import SavingsPlan from '../models/SavingsPlan';
 import User from '../models/User';
+import { createDepositTransaction, sendWithdrawalTransaction } from '../utils/wallet';
+import blockchainService from '../services/blockchain.service';
+import solendService from '../services/solend.service';
 
 // Extend Express Request type to include user
 declare global {
@@ -15,15 +18,15 @@ declare global {
 	}
 }
 
-// Plan configurations
+// Plan configurations (minimums and lock periods only - APY comes from Solend)
 const PLAN_CONFIGS = {
-	vaultfi: { apy: 0.08, minDeposit: 100, lockPeriod: 365 },
-	growfi: { apy: 0.04, minDeposit: 50, lockPeriod: 180 },
-	flexifi: { apy: 0.02, minDeposit: 25, lockPeriod: 120 },
-	swiftfi: { apy: 0.00, minDeposit: 10, lockPeriod: 0 }
+	vaultfi: { minDeposit: 100, lockPeriod: 365 },
+	growfi: { minDeposit: 50, lockPeriod: 180 },
+	flexifi: { minDeposit: 25, lockPeriod: 120 },
+	swiftfi: { minDeposit: 10, lockPeriod: 0 }
 };
 
-// Create a new savings plan
+// Create a new savings plan with blockchain integration
 export const createPlan = async (req: Request, res: Response): Promise<void> => {
 	try {
 		const { planType, amount } = req.body;
@@ -31,6 +34,16 @@ export const createPlan = async (req: Request, res: Response): Promise<void> => 
 
 		if (!userId) {
 			res.status(401).json({ success: false, error: 'User not authenticated' });
+			return;
+		}
+
+		// Get user
+		const user = await User.findById(userId);
+		if (!user || !user.phantomWallet) {
+			res.status(400).json({
+				success: false,
+				error: 'Please connect your Phantom wallet first'
+			});
 			return;
 		}
 
@@ -46,59 +59,48 @@ export const createPlan = async (req: Request, res: Response): Promise<void> => 
 		if (amount < config.minDeposit) {
 			res.status(400).json({
 				success: false,
-				error: `Minimum deposit for ${planType} is ${config.minDeposit}`
+				error: `Minimum deposit for ${planType} is ${config.minDeposit} USDC`
 			});
 			return;
 		}
 
-		// Check if user already has an active plan of this type
-		const existingPlan = await SavingsPlan.findOne({
-			userId,
-			planType,
-			status: { $in: ['active', 'locked'] }
-		});
+		// Get current Solend APY and calculate user APY
+		const userAPY = await solendService.calculateUserAPY(planType);
 
-		if (existingPlan) {
-			// Add funds to existing plan
-			existingPlan.deposits.push({
-				amount,
-				timestamp: new Date()
-			});
-			existingPlan.depositAmount += amount;
-			existingPlan.currentBalance += amount;
-			await existingPlan.save();
-
-			res.status(200).json({
-				success: true,
-				message: 'Funds added to existing plan',
-				data: existingPlan
-			});
-			return;
-		}
-
-		// Calculate end date
+		// Calculate dates
 		const startDate = new Date();
 		const endDate = config.lockPeriod > 0
 			? new Date(startDate.getTime() + config.lockPeriod * 24 * 60 * 60 * 1000)
 			: undefined;
 
-		// Create new savings plan
+		// Create unsigned deposit transaction for user to sign
+		const { transaction, blockhash } = await createDepositTransaction(
+			user.phantomWallet,
+			amount
+		);
+
+		// Serialize transaction for frontend
+		const serializedTransaction = transaction.serialize({
+			requireAllSignatures: false,
+			verifySignatures: false
+		});
+
+		// Create savings plan (pending blockchain confirmation)
 		const newPlan = new SavingsPlan({
 			userId,
 			planType,
 			depositAmount: amount,
-			currentBalance: amount,
+			currentBalance: 0, // Will be updated after blockchain confirmation
 			interestEarned: 0,
-			apy: config.apy,
-			status: config.lockPeriod > 0 ? 'active' : 'active',
+			apy: userAPY,
+			status: 'pending', // Waiting for blockchain confirmation
 			lockPeriod: config.lockPeriod,
 			startDate,
 			endDate,
+			yieldSource: 'solend',
 			lastInterestCalculation: new Date(),
-			deposits: [{
-				amount,
-				timestamp: new Date()
-			}],
+			deposits: [],
+			withdrawals: [],
 			earlyWithdrawalPenalty: 0
 		});
 
@@ -106,12 +108,66 @@ export const createPlan = async (req: Request, res: Response): Promise<void> => 
 
 		res.status(201).json({
 			success: true,
-			message: 'Savings plan created successfully',
-			data: newPlan
+			message: 'Savings plan created. Please sign the transaction in your wallet.',
+			data: {
+				plan: newPlan,
+				transaction: {
+					serialized: Array.from(serializedTransaction),
+					blockhash
+				}
+			}
 		});
-	} catch (error) {
+	} catch (error: any) {
 		console.error('Create plan error:', error);
-		res.status(500).json({ success: false, error: 'Failed to create savings plan' });
+		res.status(500).json({
+			success: false,
+			error: error.message || 'Failed to create savings plan'
+		});
+	}
+};
+
+// Confirm deposit after user signs transaction
+export const confirmDeposit = async (req: Request, res: Response): Promise<void> => {
+	try {
+		const { planId, signature } = req.body;
+
+		if (!planId || !signature) {
+			res.status(400).json({ success: false, error: 'planId and signature are required' });
+			return;
+		}
+
+		// Get plan
+		const plan = await SavingsPlan.findById(planId);
+		if (!plan) {
+			res.status(404).json({ success: false, error: 'Savings plan not found' });
+			return;
+		}
+
+		// Verify transaction on blockchain
+		const result = await blockchainService.verifyDeposit(
+			signature,
+			planId,
+			plan.depositAmount
+		);
+
+		if (result.success) {
+			res.json({
+				success: true,
+				message: result.message || 'Deposit confirmed and plan activated',
+				data: plan
+			});
+		} else {
+			res.status(400).json({
+				success: false,
+				error: result.message || 'Failed to confirm deposit'
+			});
+		}
+	} catch (error: any) {
+		console.error('Confirm deposit error:', error);
+		res.status(500).json({
+			success: false,
+			error: error.message || 'Failed to confirm deposit'
+		});
 	}
 };
 
@@ -198,7 +254,7 @@ export const addFunds = async (req: Request, res: Response): Promise<void> => {
 	}
 };
 
-// Withdraw funds from a savings plan
+// Withdraw funds from a savings plan with blockchain integration
 export const withdrawFunds = async (req: Request, res: Response): Promise<void> => {
 	try {
 		const { planId } = req.params;
@@ -207,6 +263,13 @@ export const withdrawFunds = async (req: Request, res: Response): Promise<void> 
 
 		if (!userId) {
 			res.status(401).json({ success: false, error: 'User not authenticated' });
+			return;
+		}
+
+		// Get user
+		const user = await User.findById(userId);
+		if (!user || !user.phantomWallet) {
+			res.status(400).json({ success: false, error: 'User wallet not found' });
 			return;
 		}
 
@@ -223,7 +286,7 @@ export const withdrawFunds = async (req: Request, res: Response): Promise<void> 
 		}
 
 		// Check if plan has matured
-		const isMatured = plan.endDate ? new Date() > new Date(plan.endDate) : true;
+		const isMatured = plan.endDate ? new Date() >= new Date(plan.endDate) : true;
 		let penalty = 0;
 
 		if (!isMatured && plan.lockPeriod && plan.lockPeriod > 0) {
@@ -233,17 +296,24 @@ export const withdrawFunds = async (req: Request, res: Response): Promise<void> 
 
 		const withdrawAmount = amount - penalty;
 
-		// Add withdrawal record
+		// Send withdrawal transaction on blockchain
+		const { signature: txSignature } = await sendWithdrawalTransaction(
+			user.phantomWallet,
+			withdrawAmount
+		);
+
+		// Update plan
 		plan.withdrawals.push({
 			amount: withdrawAmount,
 			timestamp: new Date(),
+			transactionHash: txSignature,
 			penalty
 		});
 		plan.currentBalance -= amount;
 
-		// If balance is zero, mark as withdrawn
+		// If balance is zero, mark as completed
 		if (plan.currentBalance === 0) {
-			plan.status = 'withdrawn';
+			plan.status = 'completed';
 		}
 
 		await plan.save();
@@ -253,11 +323,15 @@ export const withdrawFunds = async (req: Request, res: Response): Promise<void> 
 			message: penalty > 0
 				? `Withdrawal successful. Early withdrawal penalty: $${penalty.toFixed(2)}`
 				: 'Withdrawal successful',
-			data: plan
+			data: plan,
+			transactionSignature: txSignature
 		});
-	} catch (error) {
+	} catch (error: any) {
 		console.error('Withdraw funds error:', error);
-		res.status(500).json({ success: false, error: 'Failed to withdraw funds' });
+		res.status(500).json({
+			success: false,
+			error: error.message || 'Failed to withdraw funds'
+		});
 	}
 };
 
@@ -291,5 +365,23 @@ export const getStatistics = async (req: Request, res: Response): Promise<void> 
 	} catch (error) {
 		console.error('Get statistics error:', error);
 		res.status(500).json({ success: false, error: 'Failed to fetch statistics' });
+	}
+};
+
+// Get current APY from Solend
+export const getCurrentAPY = async (req: Request, res: Response): Promise<void> => {
+	try {
+		const apyData = await solendService.getAllPlanAPYs();
+
+		res.status(200).json({
+			success: true,
+			data: apyData
+		});
+	} catch (error: any) {
+		console.error('Get APY error:', error);
+		res.status(500).json({
+			success: false,
+			error: error.message || 'Failed to get current APY'
+		});
 	}
 };

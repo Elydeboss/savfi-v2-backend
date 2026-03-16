@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import User from '../models/User';
 import { generateToken, hashPassword, comparePassword, generateReferralCode } from '../utils/auth';
 import { registerSchema, loginSchema, updateProfileSchema, changePasswordSchema, connectWalletSchema } from '../utils/validation';
+import { generateWalletAddress } from '../utils/wallet';
 
 // Register user
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -24,12 +25,16 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     // Generate referral code
     const userReferralCode = generateReferralCode(username);
 
+    // Generate a wallet address for the user
+    const walletAddress = generateWalletAddress();
+
     // Create new user
     const user = new User({
       email,
       username,
       password: hashedPassword,
       referralCode: userReferralCode,
+      phantomWallet: walletAddress,
     });
 
     // Handle referral
@@ -53,6 +58,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         email: user.email,
         username: user.username,
         role: user.role,
+        phantomWallet: user.phantomWallet,
       },
     });
   } catch (error) {
@@ -104,6 +110,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         username: user.username,
         role: user.role,
         kycVerified: user.kycVerified,
+        phantomWallet: user.phantomWallet,
       },
     });
   } catch (error) {

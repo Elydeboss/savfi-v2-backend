@@ -13,6 +13,7 @@
   "license": "ISC",
   "description": "SavFi Solana Platform Backend",
   "dependencies": {
+    "@solana/web3.js": "^1.98.4",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
