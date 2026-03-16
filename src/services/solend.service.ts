@@ -1,6 +1,16 @@
 import { solanaConnection } from '../utils/wallet';
 
 /**
+ * Type definitions for Solend API responses
+ */
+interface SolendReserve {
+	address: string;
+	state?: {
+		supplyAPY?: number;
+	};
+}
+
+/**
  * Solend Service for integrating with Solend Protocol
  *
  * This service handles all interactions with the Solend lending protocol,
@@ -48,13 +58,13 @@ class SolendService {
 				return 0.05; // Default 5% fallback
 			}
 
-			const reserves = await response.json();
+			const reserves = await response.json() as SolendReserve[];
 			const usdcReserve = reserves.find(
-				(r: any) => r.address === this.usdcReserveAddress
+				(r) => r.address === this.usdcReserveAddress
 			);
 
-			if (usdcReserve && usdcReserve.state) {
-				return usdcReserve.state.supplyAPY || 0.05;
+			if (usdcReserve?.state?.supplyAPY) {
+				return usdcReserve.state.supplyAPY;
 			}
 
 			return 0.05; // Default fallback
@@ -112,7 +122,7 @@ class SolendService {
 	 * Get reserve information
 	 * @returns Reserve information including current rates
 	 */
-	async getReserveInfo(): Promise<any> {
+	async getReserveInfo(): Promise<SolendReserve | null> {
 		try {
 			const response = await fetch(
 				`https://api.devnet.solend.fi/v1/markets/${this.marketAddress}/reserves`
@@ -122,9 +132,9 @@ class SolendService {
 				return null;
 			}
 
-			const reserves = await response.json();
+			const reserves = await response.json() as SolendReserve[];
 			const usdcReserve = reserves.find(
-				(r: any) => r.address === this.usdcReserveAddress
+				(r) => r.address === this.usdcReserveAddress
 			);
 
 			return usdcReserve || null;

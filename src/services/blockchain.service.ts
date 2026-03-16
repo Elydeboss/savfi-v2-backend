@@ -50,16 +50,22 @@ class BlockchainService {
 			let actualAmount = expectedAmount; // Default to expected amount
 
 			// Try to extract actual amount from transaction
-			if (tx.meta && tx.preTokenBalances && tx.postTokenBalances) {
-				// Find the USDC token balance change
-				// This is simplified - in production you'd need to match token accounts
+			if (tx.meta) {
 				try {
-					const preBalance = tx.meta.preTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
-					const postBalance = tx.meta.postTokenBalances[0]?.uiTokenAmount?.uiAmount || 0;
-					const amountTransferred = Math.abs(preBalance - postBalance);
+					const meta = tx.meta as any;
 
-					if (amountTransferred > 0) {
-						actualAmount = amountTransferred;
+					if (meta.preTokenBalances && meta.postTokenBalances) {
+						const preBalance = meta.preTokenBalances[0]?.uiTokenAmount?.uiAmount ?? 0;
+						const postBalance = meta.postTokenBalances[0]?.uiTokenAmount?.uiAmount ?? 0;
+
+						const pre = typeof preBalance === 'string' ? parseFloat(preBalance) : preBalance;
+						const post = typeof postBalance === 'string' ? parseFloat(postBalance) : postBalance;
+
+						const amountTransferred = Math.abs(pre - post);
+
+						if (amountTransferred > 0) {
+							actualAmount = amountTransferred;
+						}
 					}
 				} catch (parseError) {
 					console.warn('Could not parse exact amount from transaction:', parseError);

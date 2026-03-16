@@ -1,6 +1,6 @@
 import { Connection, PublicKey, Keypair, Transaction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, createTransferInstruction } from '@solana/spl-token';
-import * as bs58 from 'bs58';
+import bs58 from 'bs58';
 
 // Solana Connection singleton
 export const solanaConnection = new Connection(
@@ -51,7 +51,8 @@ export async function getUsdcBalance(walletAddress: string): Promise<number> {
 			tokenAccounts.value[0].pubkey
 		);
 
-		return parseFloat(accountInfo.value.uiAmount || '0');
+		const uiAmount = accountInfo.value.uiAmount;
+		return typeof uiAmount === 'number' ? uiAmount : parseFloat(uiAmount || '0');
 	} catch (error) {
 		console.error('Error getting USDC balance:', error);
 		return 0;

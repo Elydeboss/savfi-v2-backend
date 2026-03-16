@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -10,7 +43,7 @@ const helmet_1 = __importDefault(require("helmet"));
 const compression_1 = __importDefault(require("compression"));
 const morgan_1 = __importDefault(require("morgan"));
 const mongoose_1 = __importDefault(require("mongoose"));
-const database_1 = __importDefault(require("./config/database"));
+const database_1 = __importStar(require("./config/database"));
 const env_1 = require("./config/env");
 const auth_1 = __importDefault(require("./routes/auth"));
 const oauth_1 = __importDefault(require("./routes/oauth"));
@@ -26,19 +59,10 @@ app.set('trust proxy', 1);
 // Security middleware
 app.disable('x-powered-by'); // Hide Express signature
 app.use((0, helmet_1.default)({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            scriptSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'", "https:"],
-            fontSrc: ["'self'"],
-            objectSrc: ["'none'"],
-            mediaSrc: ["'self'"],
-            frameSrc: ["'none'"],
-        },
-    },
+    // Disable cross-origin resource policy to allow API requests from frontend
+    crossOriginResourcePolicy: false,
+    // Content Security Policy - can be re-enabled later if needed
+    contentSecurityPolicy: false,
     hsts: {
         maxAge: 31536000, // 1 year
         includeSubDomains: true,
@@ -81,6 +105,27 @@ app.use(express_1.default.json({ limit: '1mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '1mb' }));
 // Initialize Passport
 app.use(oauth_2.default.initialize());
+// Database connection middleware for serverless (Vercel)
+// On Vercel, this runs before each API request
+// Locally, the database is already connected at startup
+app.use(async (req, res, next) => {
+    try {
+        // Skip database connection for health check on serverless
+        // Health check will connect separately
+        if (req.path === '/health' && process.env.VERCEL) {
+            return next();
+        }
+        // Ensure database connection exists for serverless functions
+        if (process.env.VERCEL) {
+            await (0, database_1.connectToDatabase)();
+        }
+        next();
+    }
+    catch (error) {
+        console.error('Database connection middleware error:', error);
+        res.status(503).json({ error: 'Database connection failed' });
+    }
+});
 // Apply rate limiting to all API routes
 app.use('/api/', rateLimiter_1.apiLimiter);
 // Routes
@@ -92,16 +137,26 @@ app.get('/', (req, res) => {
         environment: env_1.env.NODE_ENV,
     });
 });
+// Handle favicon requests - return 204 to prevent browser from retrying
+// This prevents console errors about blocked favicon requests
+app.get('/favicon.ico', (req, res) => {
+    res.status(204).end();
+});
 // Enhanced health check endpoint
 app.get('/health', async (req, res) => {
     try {
+        // Ensure database connection for health check (works in both local and serverless)
+        if (!process.env.VERCEL || mongoose_1.default.connection.readyState !== 1) {
+            await (0, database_1.connectToDatabase)();
+        }
+        const isDbConnected = mongoose_1.default.connection.readyState === 1;
         const health = {
-            status: 'healthy',
+            status: isDbConnected ? 'healthy' : 'unhealthy',
             timestamp: new Date().toISOString(),
             uptime: Math.floor(process.uptime()),
             environment: env_1.env.NODE_ENV,
             database: {
-                status: mongoose_1.default.connection.readyState === 1 ? 'connected' : 'disconnected',
+                status: isDbConnected ? 'connected' : 'disconnected',
                 name: mongoose_1.default.connection.name,
                 host: mongoose_1.default.connection.host,
             },
@@ -112,7 +167,7 @@ app.get('/health', async (req, res) => {
             },
             cpu: process.cpuUsage(),
         };
-        const statusCode = health.database.status === 'connected' ? 200 : 503;
+        const statusCode = isDbConnected ? 200 : 503;
         res.status(statusCode).json(health);
     }
     catch (error) {
@@ -120,6 +175,7 @@ app.get('/health', async (req, res) => {
             status: 'unhealthy',
             timestamp: new Date().toISOString(),
             error: 'Health check failed',
+            database: { status: 'disconnected' },
         });
     }
 });

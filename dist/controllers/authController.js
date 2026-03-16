@@ -8,6 +8,7 @@ const zod_1 = require("zod");
 const User_1 = __importDefault(require("../models/User"));
 const auth_1 = require("../utils/auth");
 const validation_1 = require("../utils/validation");
+const wallet_1 = require("../utils/wallet");
 // Register user
 const register = async (req, res) => {
     try {
@@ -24,12 +25,15 @@ const register = async (req, res) => {
         const hashedPassword = await (0, auth_1.hashPassword)(password);
         // Generate referral code
         const userReferralCode = (0, auth_1.generateReferralCode)(username);
+        // Generate a wallet address for the user
+        const walletAddress = (0, wallet_1.generateWalletAddress)();
         // Create new user
         const user = new User_1.default({
             email,
             username,
             password: hashedPassword,
             referralCode: userReferralCode,
+            phantomWallet: walletAddress,
         });
         // Handle referral
         if (referralCode) {
@@ -49,6 +53,7 @@ const register = async (req, res) => {
                 email: user.email,
                 username: user.username,
                 role: user.role,
+                phantomWallet: user.phantomWallet,
             },
         });
     }
@@ -96,6 +101,7 @@ const login = async (req, res) => {
                 username: user.username,
                 role: user.role,
                 kycVerified: user.kycVerified,
+                phantomWallet: user.phantomWallet,
             },
         });
     }
