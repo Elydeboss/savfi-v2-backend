@@ -25,19 +25,10 @@ app.set('trust proxy', 1);
 // Security middleware
 app.disable('x-powered-by'); // Hide Express signature
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https:"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-    },
-  },
+  // Allow cross-origin resource policy for API requests from frontend
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  // Content Security Policy - can be re-enabled later if needed
+  contentSecurityPolicy: false,
   hsts: {
     maxAge: 31536000, // 1 year
     includeSubDomains: true,
