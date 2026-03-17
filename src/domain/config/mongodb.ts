@@ -64,14 +64,14 @@ export async function createEventStoreProvider() {
   const { events, bookmarks } = await getEventStoreCollections()
 
   // Run migrations to create indexes
-  await migrate(events, bookmarks)
+  await migrate(events as any, bookmarks as any)
   console.log('✅ EvtStore MongoDB indexes created')
 
   // Create and return the provider
   return createProvider({
-    events,
-    bookmarks,
-    onError: (err: Error, stream: string, bookmark: string, event: StoreEvent<any>) => {
+    events: events as any,
+    bookmarks: bookmarks as any,
+    onError: (err: Error, stream: string, bookmark: string, event: any) => {
       console.error('❌ EvtStore Provider Error:', {
         stream,
         bookmark,

@@ -16,9 +16,10 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@evtstore/*": ["../evtstore/*", "../evtstore/src/*", "../evtstore/provider/*"]
+      "@evtstore/src/*": ["../evtstore/src/*"],
+      "@evtstore/provider/*": ["../evtstore/provider/*"]
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "../evtstore/**/*"]
+  "exclude": ["node_modules", "dist"]
 }
