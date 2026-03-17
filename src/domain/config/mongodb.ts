@@ -9,6 +9,20 @@ import { MongoClient, Collection } from 'mongodb'
 import { createProvider, migrate, type Bookmark } from '@evtstore/provider/mongo'
 import type { StoreEvent } from '@evtstore/src/types'
 
+// Declare global variable for MongoDB client caching in serverless environments
+declare global {
+  var _mongoEventClient: MongoClient | null;
+  var _mongoEventConnected: boolean;
+}
+
+// Initialize globals if they don't exist
+if (!global._mongoEventClient) {
+  global._mongoEventClient = null;
+}
+if (!global._mongoEventConnected) {
+  global._mongoEventConnected = false;
+}
+
 // MongoDB connection configuration
 // FIX: Use the same MongoDB Atlas connection string as the main app
 // Leave MONGO_PORT and MONGO_HOST for local development only
@@ -19,26 +33,28 @@ const EVTSTORE_DB = process.env.EVTSTORE_DB || 'savfi_evtstore'
 // Use MONGODB_URI (Atlas connection string) if available, otherwise fall back to localhost
 const mongoUrl = process.env.MONGODB_URI || `mongodb://${MONGO_HOST}:${MONGO_PORT}`
 
-// Singleton client instance
-let client: MongoClient | null = null
-let isConnected = false
-
 /**
  * Connect to MongoDB and return the client instance
+ * Uses GLOBAL caching for serverless environments (Vercel)
  */
 export async function connectToEventStoreDB(): Promise<MongoClient> {
-  if (client && isConnected) {
-    return client
+  // Return cached client if available and connected (warm function instance)
+  if (global._mongoEventClient && global._mongoEventConnected) {
+    return global._mongoEventClient;
   }
 
-  client = new MongoClient(mongoUrl, {
+  const client = new MongoClient(mongoUrl, {
     maxPoolSize: 10,
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 30000,
   })
 
   await client.connect()
-  isConnected = true
+
+  // Store in global for reuse across Vercel function invocations
+  global._mongoEventClient = client;
+  global._mongoEventConnected = true;
+
   console.log(`✅ Connected to EvtStore MongoDB at ${mongoUrl}`)
 
   return client
@@ -86,9 +102,10 @@ export async function createEventStoreProvider() {
  * Close MongoDB connection
  */
 export async function closeEventStoreDB() {
-  if (client) {
-    await client.close()
-    isConnected = false
+  if (global._mongoEventClient) {
+    await global._mongoEventClient.close();
+    global._mongoEventClient = null;
+    global._mongoEventConnected = false;
     console.log('✅ EvtStore MongoDB connection closed')
   }
 }
