@@ -5,31 +5,38 @@
  * All state changes go through commands that emit events.
  */
 
-import { Router } from 'express'
-import { getUserCommands, getUserAggregate } from '../domain/domain'
-import { startAllProjections } from '../domain/handlers/projections'
+import { Router } from "express";
+import { getUserCommands, getUserAggregate } from "../domain/domain";
+import { startAllProjections } from "../domain/handlers/projections";
+import User from "../models/User";
 
-const router = Router()
-
-// ============================================================================
-// USER MANAGEMENT ROUTES
-// ============================================================================
+const router = Router();
 
 /**
- * POST /api/users
- * Create a new user
+ POST /api/users
+  Create a new user
  */
-router.post('/users', async (req, res) => {
+router.post("/users", async (req, res) => {
   try {
-    const { email, username, password, referralCode } = req.body
+    const { email, username, password, referralCode } = req.body;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['create-user'](email, {
+    // Hash password for storage
+    const bcrypt = require("bcrypt");
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const userCommands = await getUserCommands();
+    const user = await userCommands["create-user"](email, {
       email,
       username,
-      password,
       referralCode,
-    })
+    });
+
+    // Save hashed password directly to User model (not stored in events for security)
+    await User.findOneAndUpdate(
+      { _id: user.aggregateId },
+      { password: hashedPassword },
+      { upsert: true, new: true },
+    );
 
     res.status(201).json({
       success: true,
@@ -40,30 +47,30 @@ router.post('/users', async (req, res) => {
         isActive: user.isActive,
         createdAt: user.createdAt,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
-/**
- * POST /api/users/oauth
- * Create a new user via OAuth
+/*
+  POST /api/users/oauth
+  Create a new user via OAuth
  */
-router.post('/users/oauth', async (req, res) => {
+router.post("/users/oauth", async (req, res) => {
   try {
-    const { email, username, provider, providerId } = req.body
+    const { email, username, provider, providerId } = req.body;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['create-user-oauth'](email, {
+    const userCommands = await getUserCommands();
+    const user = await userCommands["create-user-oauth"](email, {
       email,
       username,
       provider,
       providerId,
-    })
+    });
 
     res.status(201).json({
       success: true,
@@ -74,24 +81,24 @@ router.post('/users/oauth', async (req, res) => {
         provider: user.provider,
         isActive: user.isActive,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
-/**
- * GET /api/users/:userId
- * Get user by ID
+/*
+  GET /api/users/:userId
+  Get user by ID
  */
-router.get('/users/:userId', async (req, res) => {
+router.get("/users/:userId", async (req, res) => {
   try {
-    const { userId } = req.params
-    const userAggregate = await getUserAggregate()
-    const user = await userAggregate.getAggregate(userId)
+    const { userId } = req.params;
+    const userAggregate = await getUserAggregate();
+    const user = await userAggregate.getAggregate(userId);
 
     res.json({
       success: true,
@@ -109,28 +116,29 @@ router.get('/users/:userId', async (req, res) => {
         kycVerified: user.kycVerified,
         createdAt: user.createdAt,
       },
-    })
+    });
   } catch (error) {
     res.status(404).json({
       success: false,
-      error: error instanceof Error ? error.message : 'User not found',
-    })
+      error: error instanceof Error ? error.message : "User not found",
+    });
   }
-})
+});
 
 /**
- * PUT /api/users/:userId/profile
- * Update user profile
+  PUT /api/users/:userId/profile
+  Update user profile
  */
-router.put('/users/:userId/profile', async (req, res) => {
+router.put("/users/:userId/profile", async (req, res) => {
   try {
-    const { userId } = req.params
-    const { username, profilePicture, phoneNumber, country, dateOfBirth } = req.body
+    const { userId } = req.params;
+    const { username, profilePicture, phoneNumber, country, dateOfBirth } =
+      req.body;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['update-profile'](userId, {
+    const userCommands = await getUserCommands();
+    const user = await userCommands["update-profile"](userId, {
       updates: { username, profilePicture, phoneNumber, country, dateOfBirth },
-    })
+    });
 
     res.json({
       success: true,
@@ -139,29 +147,29 @@ router.put('/users/:userId/profile', async (req, res) => {
         username: user.username,
         updatedAt: user.updatedAt,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
 /**
- * POST /api/users/:userId/wallet
- * Link wallet to user
+  POST /api/users/:userId/wallet
+  Link wallet to user
  */
-router.post('/users/:userId/wallet', async (req, res) => {
+router.post("/users/:userId/wallet", async (req, res) => {
   try {
-    const { userId } = req.params
-    const { walletAddress, walletType } = req.body
+    const { userId } = req.params;
+    const { walletAddress, walletType } = req.body;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['link-wallet'](userId, {
+    const userCommands = await getUserCommands();
+    const user = await userCommands["link-wallet"](userId, {
       walletAddress,
       walletType,
-    })
+    });
 
     res.json({
       success: true,
@@ -169,29 +177,29 @@ router.post('/users/:userId/wallet', async (req, res) => {
         id: user.aggregateId,
         walletLinked: true,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
-/**
- * POST /api/users/:userId/kyc
- * Submit KYC verification
+/*
+ POST /api/users/:userId/kyc
+  Submit KYC verification
  */
-router.post('/users/:userId/kyc', async (req, res) => {
+router.post("/users/:userId/kyc", async (req, res) => {
   try {
-    const { userId } = req.params
-    const { documentType, idDocument, selfie, proofOfAddress } = req.body
+    const { userId } = req.params;
+    const { documentType, idDocument, selfie, proofOfAddress } = req.body;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['submit-kyc'](userId, {
+    const userCommands = await getUserCommands();
+    const user = await userCommands["submit-kyc"](userId, {
       documentType,
       documentUrls: { idDocument, selfie, proofOfAddress },
-    })
+    });
 
     res.json({
       success: true,
@@ -199,26 +207,26 @@ router.post('/users/:userId/kyc', async (req, res) => {
         id: user.aggregateId,
         kycSubmitted: true,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
-/**
- * POST /api/users/:userId/kyc/approve
- * Approve KYC (admin only)
+/*
+  POST /api/users/:userId/kyc/approve
+  Approve KYC (admin only)
  */
-router.post('/users/:userId/kyc/approve', async (req, res) => {
+router.post("/users/:userId/kyc/approve", async (req, res) => {
   try {
-    const { userId } = req.params
-    const { verifiedBy } = req.body
+    const { userId } = req.params;
+    const { verifiedBy } = req.body;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['approve-kyc'](userId, { verifiedBy })
+    const userCommands = await getUserCommands();
+    const user = await userCommands["approve-kyc"](userId, { verifiedBy });
 
     res.json({
       success: true,
@@ -226,26 +234,26 @@ router.post('/users/:userId/kyc/approve', async (req, res) => {
         id: user.aggregateId,
         kycVerified: user.kycVerified,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
-/**
- * POST /api/users/:userId/kyc/reject
- * Reject KYC (admin only)
+/*
+  POST /api/users/:userId/kyc/reject
+  Reject KYC (admin only)
  */
-router.post('/users/:userId/kyc/reject', async (req, res) => {
+router.post("/users/:userId/kyc/reject", async (req, res) => {
   try {
-    const { userId } = req.params
-    const { reason } = req.body
+    const { userId } = req.params;
+    const { reason } = req.body;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['reject-kyc'](userId, { reason })
+    const userCommands = await getUserCommands();
+    const user = await userCommands["reject-kyc"](userId, { reason });
 
     res.json({
       success: true,
@@ -253,26 +261,26 @@ router.post('/users/:userId/kyc/reject', async (req, res) => {
         id: user.aggregateId,
         kycVerified: user.kycVerified,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
 /**
- * POST /api/users/:userId/ban
- * Ban user (admin only)
+  POST /api/users/:userId/ban
+  Ban user (admin only)
  */
-router.post('/users/:userId/ban', async (req, res) => {
+router.post("/users/:userId/ban", async (req, res) => {
   try {
-    const { userId } = req.params
-    const { reason, bannedBy } = req.body
+    const { userId } = req.params;
+    const { reason, bannedBy } = req.body;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['ban-user'](userId, { reason, bannedBy })
+    const userCommands = await getUserCommands();
+    const user = await userCommands["ban-user"](userId, { reason, bannedBy });
 
     res.json({
       success: true,
@@ -281,26 +289,26 @@ router.post('/users/:userId/ban', async (req, res) => {
         isBanned: user.isBanned,
         isActive: user.isActive,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
-/**
- * POST /api/users/:userId/unban
- * Unban user (admin only)
+/*
+  POST /api/users/:userId/unban
+  Unban user (admin only)
  */
-router.post('/users/:userId/unban', async (req, res) => {
+router.post("/users/:userId/unban", async (req, res) => {
   try {
-    const { userId } = req.params
-    const { unbannedBy } = req.body
+    const { userId } = req.params;
+    const { unbannedBy } = req.body;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['unban-user'](userId, { unbannedBy })
+    const userCommands = await getUserCommands();
+    const user = await userCommands["unban-user"](userId, { unbannedBy });
 
     res.json({
       success: true,
@@ -309,25 +317,25 @@ router.post('/users/:userId/unban', async (req, res) => {
         isBanned: user.isBanned,
         isActive: user.isActive,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
 /**
- * POST /api/users/:userId/deactivate
- * Deactivate user
+  POST /api/users/:userId/deactivate
+  Deactivate user
  */
-router.post('/users/:userId/deactivate', async (req, res) => {
+router.post("/users/:userId/deactivate", async (req, res) => {
   try {
-    const { userId } = req.params
+    const { userId } = req.params;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['deactivate-user'](userId, {})
+    const userCommands = await getUserCommands();
+    const user = await userCommands["deactivate-user"](userId, {});
 
     res.json({
       success: true,
@@ -335,25 +343,25 @@ router.post('/users/:userId/deactivate', async (req, res) => {
         id: user.aggregateId,
         isActive: user.isActive,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
-/**
- * POST /api/users/:userId/reactivate
- * Reactivate user
+/*
+  POST /api/users/:userId/reactivate
+  Reactivate user
  */
-router.post('/users/:userId/reactivate', async (req, res) => {
+router.post("/users/:userId/reactivate", async (req, res) => {
   try {
-    const { userId } = req.params
+    const { userId } = req.params;
 
-    const userCommands = await getUserCommands()
-    const user = await userCommands['reactivate-user'](userId, {})
+    const userCommands = await getUserCommands();
+    const user = await userCommands["reactivate-user"](userId, {});
 
     res.json({
       success: true,
@@ -361,13 +369,13 @@ router.post('/users/:userId/reactivate', async (req, res) => {
         id: user.aggregateId,
         isActive: user.isActive,
       },
-    })
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
-})
+});
 
-export default router
+export default router;

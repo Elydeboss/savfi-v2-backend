@@ -23,6 +23,9 @@ export type UserAgg = {
   referralEarnings: number
   kycVerified: boolean
   ninVerified: boolean
+  // Wallet fields
+  walletAddress?: string
+  walletType?: 'phantom' | 'solflare'
   // Profile fields referenced in events and commands
   profilePicture?: string
   phoneNumber?: string
@@ -37,7 +40,7 @@ export type UserAgg = {
 // ============================================================================
 export type UserEvt =
   // User creation events
-  | { type: 'user-created'; email: string; username: string; password: string; referralCode: string }
+  | { type: 'user-created'; email: string; username: string; referralCode: string }
   | { type: 'user-created-oauth'; email: string; username: string; provider: 'google' | 'apple'; providerId: string }
 
   // User profile events
@@ -69,7 +72,7 @@ export type UserEvt =
 // USER COMMANDS (Actions to take)
 // ============================================================================
 export type UserCmd =
-  | { type: 'create-user'; email: string; username: string; password: string; referralCode?: string }
+  | { type: 'create-user'; email: string; username: string; referralCode?: string }
   | { type: 'create-user-oauth'; email: string; username: string; provider: 'google' | 'apple'; providerId: string }
   | { type: 'verify-email' }
   | { type: 'update-profile'; updates: Partial<Pick<UserAgg, 'username' | 'profilePicture' | 'phoneNumber' | 'country' | 'dateOfBirth'>> }

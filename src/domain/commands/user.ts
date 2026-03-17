@@ -37,17 +37,12 @@ export function createUserCommands(userAggregate: ProvidedAggregate<UserEvt, Use
         throw new Error('Username must be between 3 and 30 characters')
       }
 
-      // Business rule: Password must be provided
-      if (!cmd.password || cmd.password.length < 6) {
-        throw new Error('Password must be at least 6 characters')
-      }
-
       // Emit user-created event
+      // Note: Password handling is done at the route level, not in events
       return {
         type: 'user-created',
         email: cmd.email,
         username: cmd.username,
-        password: cmd.password, // Will be hashed in the event handler
         referralCode: cmd.referralCode || generateReferralCode(),
       }
     },
@@ -63,10 +58,11 @@ export function createUserCommands(userAggregate: ProvidedAggregate<UserEvt, Use
       }
 
       // Generate unique username with timestamp to avoid collisions
-      // Format: {email_prefix}_g_{timestamp} for Google OAuth
+      // Format: {email_prefix}_{provider}_{timestamp} where provider is 'g' for Google, 'a' for Apple, 'o' for other
       const baseUsername = cmd.email.split('@')[0]
       const timestamp = Date.now().toString(36)
-      const username = `${baseUsername}_g_${timestamp}`
+      const providerSuffix = cmd.provider === 'google' ? 'g' : cmd.provider === 'apple' ? 'a' : 'o'
+      const username = `${baseUsername}_${providerSuffix}_${timestamp}`
 
       return {
         type: 'user-created-oauth',

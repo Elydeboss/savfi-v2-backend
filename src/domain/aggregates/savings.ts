@@ -1,25 +1,25 @@
 /**
- * Savings Aggregate
- *
- * Defines how Savings Plan state is built from events.
- * The fold function applies events to update the aggregate state.
+ Savings Aggregate
+ Defines how Savings Plan state is built from events.
+ The fold function applies events to update the aggregate state.
  */
 
-import { createAggregate } from '@evtstore/src/create-aggregate'
-import type { SavingsEvt, SavingsAgg } from '../types/savings'
+import { createAggregate } from "@evtstore/src/create-aggregate";
+import type { SavingsEvt, SavingsAgg } from "../types/savings";
+import type { EventMeta, BaseAggregate } from '@evtstore/src/types';
 
-export const savings = createAggregate<SavingsEvt, SavingsAgg, 'savings'>({
-  stream: 'savings',
+export const savings = createAggregate<SavingsEvt, SavingsAgg, "savings">({
+  stream: "savings",
 
   // Initial state for a new savings plan
   create: () => ({
-    userId: '',
-    planType: 'flexifi',
+    userId: "",
+    planType: "flexifi",
     depositAmount: 0,
     currentBalance: 0,
     interestEarned: 0,
     apy: 0,
-    status: 'active',
+    status: "active",
     lockPeriod: undefined,
     startDate: new Date(),
     endDate: undefined,
@@ -33,117 +33,113 @@ export const savings = createAggregate<SavingsEvt, SavingsAgg, 'savings'>({
   }),
 
   // Fold function: apply events to update state
-  fold: (evt: SavingsEvt) => {
+  fold: (evt: SavingsEvt, agg: SavingsAgg & BaseAggregate, meta: EventMeta) => {
     switch (evt.type) {
       // Plan creation
-      case 'plan-created':
+      case "plan-created":
         return {
           userId: evt.userId,
           planType: evt.planType,
           depositAmount: evt.depositAmount,
           currentBalance: evt.depositAmount,
-          interestEarned: 0,
           apy: evt.apy,
-          status: 'active',
           lockPeriod: evt.lockPeriod,
-          startDate: new Date(),
-          endDate: evt.lockPeriod ? new Date(Date.now() + evt.lockPeriod * 24 * 60 * 60 * 1000) : undefined,
-          lastInterestCalculation: new Date(),
+          endDate: evt.lockPeriod
+            ? new Date(meta.timestamp.getTime() + evt.lockPeriod * 24 * 60 * 60 * 1000)
+            : undefined,
           totalDeposits: 1,
-          totalWithdrawals: 0,
-          earlyWithdrawalPenalty: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
+          createdAt: meta.timestamp,
+          updatedAt: meta.timestamp,
+        };
 
-      case 'plan-activated':
+      case "plan-activated":
         return {
-          status: 'active',
+          status: "active",
           blockchainReceipt: evt.transactionHash,
-          updatedAt: new Date(),
-        }
+          updatedAt: meta.timestamp,
+        };
 
       // Deposits
-      case 'deposit-confirmed':
+      case "deposit-confirmed":
         return {
-          currentBalance: evt.amount, // This would be added to current balance in actual implementation
-          totalDeposits: 1, // This would be incremented
-          updatedAt: new Date(),
-        }
+          currentBalance: agg.currentBalance + evt.amount,
+          totalDeposits: agg.totalDeposits + 1,
+          updatedAt: meta.timestamp,
+        };
 
-      case 'deposit-failed':
+      case "deposit-failed":
         return {
-          updatedAt: new Date(),
-        }
+          updatedAt: meta.timestamp,
+        };
 
       // Interest
-      case 'interest-accrued':
+      case "interest-accrued":
         return {
-          interestEarned: evt.amount,
+          interestEarned: agg.interestEarned + evt.amount,
           currentBalance: evt.newBalance,
           lastInterestCalculation: evt.calculatedAt,
-          updatedAt: new Date(),
-        }
+          updatedAt: meta.timestamp,
+        };
 
-      case 'interest-paid':
+      case "interest-paid":
         return {
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
           blockchainReceipt: evt.transactionHash,
-        }
+        };
 
       // Withdrawals
-      case 'withdrawal-completed':
+      case "withdrawal-completed":
         return {
-          currentBalance: evt.amount, // This would be subtracted in actual implementation
-          totalWithdrawals: 1, // This would be incremented
-          earlyWithdrawalPenalty: evt.penalty || 0,
-          updatedAt: new Date(),
-        }
+          currentBalance: agg.currentBalance - evt.amount,
+          totalWithdrawals: agg.totalWithdrawals + 1,
+          earlyWithdrawalPenalty: agg.earlyWithdrawalPenalty + (evt.penalty || 0),
+          updatedAt: meta.timestamp,
+        };
 
-      case 'withdrawal-failed':
+      case "withdrawal-failed":
         return {
-          updatedAt: new Date(),
-        }
+          updatedAt: meta.timestamp,
+        };
 
-      case 'early-withdrawal-penalty-applied':
+      case "early-withdrawal-penalty-applied":
         return {
-          earlyWithdrawalPenalty: evt.penalty,
-          status: 'penalized',
-          updatedAt: new Date(),
-        }
+          earlyWithdrawalPenalty: agg.earlyWithdrawalPenalty + evt.penalty,
+          status: "penalized",
+          updatedAt: meta.timestamp,
+        };
 
       // Plan status changes
-      case 'plan-completed':
+      case "plan-completed":
         return {
-          status: 'completed',
+          status: "completed",
           endDate: evt.endDate,
           currentBalance: evt.finalBalance,
-          updatedAt: new Date(),
-        }
+          updatedAt: meta.timestamp,
+        };
 
-      case 'plan-penalized':
+      case "plan-penalized":
         return {
-          status: 'penalized',
+          status: "penalized",
           earlyWithdrawalPenalty: evt.penaltyAmount,
-          updatedAt: new Date(),
-        }
+          updatedAt: meta.timestamp,
+        };
 
-      case 'plan-closed':
+      case "plan-closed":
         return {
-          status: 'withdrawn',
-          updatedAt: new Date(),
-        }
+          status: "withdrawn",
+          updatedAt: meta.timestamp,
+        };
 
       // Blockchain operations
-      case 'blockchain-deposit-confirmed':
-      case 'blockchain-withdrawal-confirmed':
+      case "blockchain-deposit-confirmed":
+      case "blockchain-withdrawal-confirmed":
         return {
-          blockchainReceipt: evt.signature || evt.txHash,
-          updatedAt: new Date(),
-        }
+          blockchainReceipt: (evt as any).signature || (evt as any).txHash,
+          updatedAt: meta.timestamp,
+        };
 
       default:
-        return {}
+        return {};
     }
   },
-})
+});

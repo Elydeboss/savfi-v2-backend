@@ -6,6 +6,7 @@
 
 import { createAggregate } from '@evtstore/src/create-aggregate'
 import type { UserEvt, UserAgg } from '../types/user'
+import type { EventMeta, BaseAggregate } from '@evtstore/src/types'
 
 export const user = createAggregate<UserEvt, UserAgg, "user">({
   stream: "user",
@@ -35,24 +36,16 @@ export const user = createAggregate<UserEvt, UserAgg, "user">({
   }),
 
   // Fold function: apply events to update state
-  fold: (evt: UserEvt) => {
+  fold: (evt: UserEvt, agg: UserAgg & BaseAggregate, meta: EventMeta) => {
     switch (evt.type) {
       // User creation
       case "user-created":
         return {
           email: evt.email,
           username: evt.username,
-          provider: "email",
-          emailVerified: false,
-          isActive: true,
-          isBanned: false,
-          role: "user",
           referralCode: evt.referralCode,
-          referralEarnings: 0,
-          kycVerified: false,
-          ninVerified: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: meta.timestamp,
+          updatedAt: meta.timestamp,
         };
 
       case "user-created-oauth":
@@ -62,67 +55,62 @@ export const user = createAggregate<UserEvt, UserAgg, "user">({
           provider: evt.provider,
           providerId: evt.providerId,
           emailVerified: true, // OAuth emails are pre-verified
-          isActive: true,
-          isBanned: false,
-          role: "user",
-          referralCode: "",
-          referralEarnings: 0,
-          kycVerified: false,
-          ninVerified: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          referralCode: agg.referralCode || "",
+          createdAt: meta.timestamp,
+          updatedAt: meta.timestamp,
         };
 
       // Email verification
       case "user-verified":
         return {
           emailVerified: true,
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       // Profile updates
       case "profile-updated":
         return {
           ...evt.fields,
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       // Wallet linking
       case "wallet-linked":
-        // This would update a wallet field in the aggregate
         return {
-          updatedAt: new Date(),
+          walletAddress: evt.walletAddress,
+          walletType: evt.walletType,
+          updatedAt: meta.timestamp,
         };
 
       // KYC events
       case "kyc-submitted":
         return {
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       case "kyc-approved":
         return {
           kycVerified: true,
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       case "kyc-rejected":
         return {
           kycVerified: false,
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       // Referral events
       case "referral-used":
         return {
           referredBy: evt.referralCode,
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       case "referral-earned":
         return {
-          referralEarnings: evt.amount,
-          updatedAt: new Date(),
+          referralEarnings: agg.referralEarnings + evt.amount,
+          updatedAt: meta.timestamp,
         };
 
       // Admin events
@@ -131,7 +119,7 @@ export const user = createAggregate<UserEvt, UserAgg, "user">({
           isBanned: true,
           banReason: evt.reason,
           isActive: false,
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       case "user-unbanned":
@@ -139,26 +127,26 @@ export const user = createAggregate<UserEvt, UserAgg, "user">({
           isBanned: false,
           banReason: undefined,
           isActive: true,
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       case "role-changed":
         return {
           role: evt.newRole,
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       // User activity
       case "user-deactivated":
         return {
           isActive: false,
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       case "user-reactivated":
         return {
           isActive: true,
-          updatedAt: new Date(),
+          updatedAt: meta.timestamp,
         };
 
       default:
