@@ -12,6 +12,7 @@ import oauthRoutes from './routes/oauth';
 import savingsRoutes from './routes/savings';
 import passport from './config/oauth';
 import { apiLimiter } from './middleware/rateLimiter';
+import { startAllProjections } from './domain/handlers/projections';
 
 // Load environment variables
 dotenv.config();
@@ -217,6 +218,19 @@ if (!process.env.VERCEL) {
     try {
       // Connect to MongoDB
       await connectDB();
+
+      // Start EvtStore projection handlers if enabled
+      if (process.env.EVTSTORE_ENABLED === 'true') {
+        try {
+          await startAllProjections();
+          console.log('✅ EvtStore projection handlers started');
+        } catch (error) {
+          console.error('❌ Failed to start EvtStore projection handlers:', error);
+          // Don't fail the app startup, just log the error
+        }
+      } else {
+        console.log('ℹ️ EvtStore projection handlers not enabled (set EVTSTORE_ENABLED=true to enable)');
+      }
 
       // Start listening
       app.listen(env.PORT, () => {

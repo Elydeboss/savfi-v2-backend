@@ -15,7 +15,8 @@ passport.use(
 		{
 			clientID: GOOGLE_CLIENT_ID,
 			clientSecret: GOOGLE_CLIENT_SECRET,
-			callbackURL: `${CALLBACK_URL}/api/auth/oauth/google/callback`
+			// FIX: CALLBACK_URL already includes the full path, don't append duplicate
+			callbackURL: CALLBACK_URL
 		},
 		async (accessToken, refreshToken, profile, done) => {
 			try {
@@ -85,6 +86,10 @@ passport.use(
 
 				done(null, user);
 			} catch (error) {
+				console.error('❌ Passport Google OAuth strategy error:', {
+					message: (error as Error).message,
+					stack: (error as Error).stack,
+				});
 				done(error as Error);
 			}
 		}
