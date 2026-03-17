@@ -38,3 +38,17 @@ export const sensitiveLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// OTP-specific rate limiter
+// Prevents OTP spam while allowing reasonable resend attempts
+export const otpLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 3, // 3 OTP requests per minute
+  message: {
+    success: false,
+    error: 'Too many OTP requests. Please wait before trying again.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+});

@@ -81,6 +81,23 @@ export const connectWalletSchema = z.object({
     .regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Invalid Solana wallet address format'),
 });
 
+// OTP verification validation schema
+export const verifyOTPSchema = z.object({
+  email: z.string()
+    .min(1, 'Email is required')
+    .email('Invalid email format'),
+  otp: z.string()
+    .min(1, 'OTP is required')
+    .regex(/^\d{6}$/, 'OTP must be 6 digits')
+});
+
+// Resend OTP validation schema
+export const resendOTPSchema = z.object({
+  email: z.string()
+    .min(1, 'Email is required')
+    .email('Invalid email format')
+});
+
 // Export type inference helper
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -89,3 +106,5 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type CreateSavingsPlanInput = z.infer<typeof createSavingsPlanSchema>;
 export type TransactionInput = z.infer<typeof transactionSchema>;
 export type ConnectWalletInput = z.infer<typeof connectWalletSchema>;
+export type VerifyOTPInput = z.infer<typeof verifyOTPSchema>;
+export type ResendOTPInput = z.infer<typeof resendOTPSchema>;

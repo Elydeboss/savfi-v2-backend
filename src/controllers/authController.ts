@@ -1,65 +1,108 @@
 import { Request, Response } from 'express';
 import { ZodError } from 'zod';
 import User from '../models/User';
+import { OTP } from '../models/OTP';
+import { PendingRegistration } from '../models/PendingRegistration';
 import { generateToken, hashPassword, comparePassword, generateReferralCode } from '../utils/auth';
 import { registerSchema, loginSchema, updateProfileSchema, changePasswordSchema, connectWalletSchema } from '../utils/validation';
 import { generateWalletAddress } from '../utils/wallet';
+import { OTPService } from '../services/otp.service';
 
-// Register user
+// Register user - sends OTP for verification
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate input with Zod schema
     const validatedData = registerSchema.parse(req.body);
     const { email, username, password, referralCode } = validatedData;
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
-    if (existingUser) {
-      res.status(400).json({ error: 'User with this email or username already exists' });
+    // Check if user already exists - check separately for better error messages
+    const emailExists = await User.findOne({ email });
+    const usernameExists = await User.findOne({ username });
+
+    if (emailExists) {
+      // Check if user registered via Google OAuth
+      if (emailExists.provider === 'google') {
+        res.status(400).json({
+          error: 'This email is already registered with Google Sign-In. Please use Google Sign-In to login.',
+          field: 'email',
+          provider: 'google'
+        });
+        return;
+      }
+
+      res.status(400).json({
+        error: 'This email is already registered. Please login or reset your password.',
+        field: 'email'
+      });
       return;
     }
 
-    // Hash password
-    const hashedPassword = await hashPassword(password);
-
-    // Generate referral code
-    const userReferralCode = generateReferralCode(username);
-
-    // Generate a wallet address for the user
-    const walletAddress = generateWalletAddress();
-
-    // Create new user
-    const user = new User({
-      email,
-      username,
-      password: hashedPassword,
-      referralCode: userReferralCode,
-      phantomWallet: walletAddress,
-    });
-
-    // Handle referral
-    if (referralCode) {
-      const referrer = await User.findOne({ referralCode: referralCode.toUpperCase() });
-      if (referrer) {
-        user.referredBy = referrer.referralCode;
-      }
+    if (usernameExists) {
+      res.status(400).json({
+        error: 'This username is already taken. Please choose a different username.',
+        field: 'username'
+      });
+      return;
     }
 
-    await user.save();
+    // Check if there's already a pending registration for this email
+    const pendingOTP = await OTP.findOne({ email, type: 'registration' });
+    if (pendingOTP) {
+      res.status(400).json({
+        error: 'An OTP has already been sent to this email. Please check your inbox or request a new OTP.',
+        requiresOTP: true,
+        email
+      });
+      return;
+    }
 
-    // Generate token
-    const token = generateToken(user);
+    // Check if there's pending registration data
+    const pendingReg = await PendingRegistration.findOne({ email });
+    if (pendingReg) {
+      // Verify username is still available
+      if (pendingReg.username !== username) {
+        const usernameTaken = await User.findOne({ username });
+        if (usernameTaken) {
+          res.status(400).json({
+            error: 'This username is already taken. Please choose a different username.',
+            field: 'username'
+          });
+          return;
+        }
+      }
+      // Update pending registration with new data
+      pendingReg.username = username;
+      pendingReg.password = await hashPassword(password);
+      pendingReg.referralCode = referralCode;
+      pendingReg.expiresAt = new Date(Date.now() + 10 * 60 * 1000); // Reset expiry
+      await pendingReg.save();
+    } else {
+      // Hash password
+      const hashedPassword = await hashPassword(password);
 
-    res.status(201).json({
-      message: 'User registered successfully',
-      token,
-      user: {
-        id: user._id,
-        email: user.email,
-        username: user.username,
-        role: user.role,
-        phantomWallet: user.phantomWallet,
-      },
+      // Store pending registration
+      await PendingRegistration.create({
+        email,
+        username,
+        password: hashedPassword,
+        referralCode,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+      });
+    }
+
+    // Send OTP to email
+    const result = await OTPService.createAndSendOTP(email, 'registration');
+
+    if (!result.success) {
+      res.status(500).json({ error: 'Failed to send verification email. Please try again.' });
+      return;
+    }
+
+    res.status(200).json({
+      message: 'Verification email sent. Please check your inbox to complete your registration.',
+      requiresOTP: true,
+      email
     });
   } catch (error) {
     if (error instanceof ZodError) {
@@ -68,6 +111,139 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
     console.error('Register error:', error);
     res.status(500).json({ error: 'Server error during registration' });
+  }
+};
+
+// Verify OTP and complete registration
+export const verifyOTPAndRegister = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, otp } = req.body;
+
+    // Validate input
+    if (!email || !otp) {
+      res.status(400).json({ error: 'Email and OTP are required', field: 'otp' });
+      return;
+    }
+
+    // Verify OTP
+    const verification = await OTPService.verifyOTP(email, otp, 'registration');
+    if (!verification.valid) {
+      res.status(400).json({ error: verification.message, field: 'otp' });
+      return;
+    }
+
+    // Get pending registration
+    const pendingReg = await PendingRegistration.findOne({ email });
+    if (!pendingReg) {
+      res.status(400).json({ error: 'Registration data not found or expired. Please start over.' });
+      return;
+    }
+
+    // Check if username is still available
+    const usernameTaken = await User.findOne({ username: pendingReg.username });
+    if (usernameTaken) {
+      // Delete pending registration
+      await PendingRegistration.deleteOne({ email });
+      res.status(400).json({
+        error: 'This username is already taken. Please start registration with a different username.',
+        field: 'username'
+      });
+      return;
+    }
+
+    // Generate referral code
+    const userReferralCode = generateReferralCode(pendingReg.username);
+
+    // Generate a wallet address for the user
+    const walletAddress = generateWalletAddress();
+
+    // Create user with pending data
+    const user = new User({
+      email: pendingReg.email,
+      username: pendingReg.username,
+      password: pendingReg.password,
+      referralCode: userReferralCode,
+      phantomWallet: walletAddress,
+      emailVerified: true, // Email is verified since they completed OTP
+      provider: 'email'
+    });
+
+    // Handle referral if code provided
+    if (pendingReg.referralCode) {
+      const referrer = await User.findOne({ referralCode: pendingReg.referralCode.toUpperCase() });
+      if (referrer) {
+        user.referredBy = referrer.referralCode;
+      }
+    }
+
+    await user.save();
+
+    // Delete pending registration
+    await PendingRegistration.deleteOne({ email });
+
+    // Generate token
+    const token = generateToken(user);
+
+    res.status(201).json({
+      message: 'Registration successful',
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        phantomWallet: user.phantomWallet,
+        emailVerified: user.emailVerified
+      }
+    });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    res.status(500).json({ error: 'Server error during verification' });
+  }
+};
+
+// Resend OTP
+export const resendOTP = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+
+    // Check if there's a pending registration
+    const pendingReg = await PendingRegistration.findOne({ email });
+    if (!pendingReg) {
+      res.status(400).json({ error: 'No pending registration found. Please start a new registration.' });
+      return;
+    }
+
+    // Check if OTP was recently sent (rate limiting: 60 seconds)
+    const recentOTP = await OTP.findOne({ email, type: 'registration' });
+    if (recentOTP) {
+      const timeSinceLastSent = Date.now() - recentOTP.createdAt.getTime();
+      if (timeSinceLastSent < 60000) {
+        const remainingSeconds = Math.ceil((60000 - timeSinceLastSent) / 1000);
+        res.status(429).json({
+          error: `Please wait ${remainingSeconds} seconds before requesting another OTP.`,
+          retryAfter: remainingSeconds
+        });
+        return;
+      }
+    }
+
+    // Send new OTP
+    const result = await OTPService.createAndSendOTP(email, 'registration');
+    if (!result.success) {
+      res.status(500).json({ error: 'Failed to send OTP. Please try again.' });
+      return;
+    }
+
+    res.status(200).json({ message: 'New OTP sent to your email' });
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 };
 
