@@ -4,21 +4,21 @@ import rateLimit from 'express-rate-limit';
 // Prevents brute force attacks on login and registration
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 5, // 5 attempts per window
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 30, // 30 attempts per window (increased from 5)
   message: {
     success: false,
     error: 'Too many authentication attempts. Please try again later.',
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  skipSuccessfulRequests: false, // Count successful requests
+  skipSuccessfulRequests: true, // Don't count successful requests toward rate limit
 });
 
 // General API rate limiter
 // Prevents API abuse and DDoS attacks
 export const apiLimiter = rateLimit({
   windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // 100 requests per window
+  max: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 500, // 500 requests per window (increased from 100)
   message: {
     success: false,
     error: 'Too many requests. Please slow down.',
