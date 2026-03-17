@@ -82,3 +82,5 @@ dump.rdb
 
 # Passport/OAuth (keep .env with credentials out of git)
 # Note: If you store OAuth certs as files, add them here
+# EvtStore library node_modules only (source files are committed)
+evtstore-lib/node_modules/

@@ -16,8 +16,9 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@evtstore/src/*": ["../evtstore/src/*"],
-      "@evtstore/provider/*": ["../evtstore/provider/*"]
+      "@evtstore/src/*": ["./evtstore-lib/src/*", "../evtstore/src/*"],
+      "@evtstore/provider/*": ["./evtstore-lib/provider/*", "../evtstore/provider/*"],
+      "@evtstore/*": ["./evtstore-lib/*", "../evtstore/*"]
     }
   },
   "include": ["src/**/*"],

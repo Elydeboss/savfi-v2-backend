@@ -1,0 +1,51 @@
+{
+  "name": "evtstore",
+  "version": "12.0.1",
+  "description": "Event Sourcing with Node.JS",
+  "types": "index.d.ts",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha \"src/test/**/*.spec.js\" --exit -t 10000",
+    "clean": "rimraf \"*.js\" \"*.js.map\" \"*.d.ts\" \"src/**/*.js*\" \"src/**/*.d.ts\" \"provider/**/*.js*\" \"provider/**/*.d.ts\"",
+    "prebuild": "yarn clean",
+    "build": "tsc",
+    "prepublishOnly": "yarn run clean && yarn build && yarn test",
+    "up": "docker-compose up -d",
+    "down": "docker-compose down"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seikho/evtstore.git"
+  },
+  "keywords": [
+    "event",
+    "sourcing",
+    "source",
+    "stream",
+    "cqrs"
+  ],
+  "author": "Carl Winkler",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/seikho/evtstore/issues"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/chai": "^4.2.3",
+    "@types/dotenv": "^6.1.1",
+    "@types/mocha": "^5.2.7",
+    "@types/pg": "^8.6.1",
+    "@types/sqlite3": "^3.1.5",
+    "chai": "^4.2.0",
+    "dotenv": "^8.1.0",
+    "knex": "^2.4.0",
+    "mocha": "^10.2.0",
+    "mongodb": "^4.11.0",
+    "neo4j-driver": "^4.1.2",
+    "pg": "^8.2.1",
+    "postgres": "^3.2.4",
+    "rimraf": "^3.0.0",
+    "sqlite3": "^5.1.4",
+    "typescript": "^4.9.4"
+  }
+}

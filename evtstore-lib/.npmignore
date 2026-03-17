@@ -1,0 +1,7 @@
+src/test
+.vscode/
+.git/
+*.sqlite
+*.log
+example/
+test.env
