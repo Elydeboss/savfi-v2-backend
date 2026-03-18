@@ -1,70 +1,120 @@
 import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
+// For production with Resend (when you have a domain)
 const resend = new Resend(process.env.RESEND_API_KEY || '');
 
+// For development/testing with Ethereal (no domain needed)
+let etherealTransporter: nodemailer.Transporter | null = null;
+let etherealCredentials: { user: string; pass: string } | null = null;
+
+async function getEtherealTransporter() {
+  if (!etherealTransporter) {
+    // Create a test account with Ethereal
+    const testAccount = await nodemailer.createTestAccount();
+    etherealCredentials = { user: testAccount.user, pass: testAccount.pass };
+
+    // Create a transporter
+    etherealTransporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+
+    console.log('📧 Ethereal test account created:');
+    console.log('   User:', testAccount.user);
+    console.log('   Pass:', testAccount.pass);
+  }
+  return etherealTransporter;
+}
+
 interface EmailOptions {
-	to: string;
-	subject: string;
-	html: string;
+  to: string;
+  subject: string;
+  html: string;
 }
 
 export class EmailService {
-	static async sendEmail({ to, subject, html }: EmailOptions): Promise<void> {
-		if (!process.env.RESEND_API_KEY) {
-			console.error('CRITICAL: RESEND_API_KEY environment variable is not set!');
-			console.error('Emails cannot be sent without this key.');
-			console.error('Please add RESEND_API_KEY to your Vercel environment variables.');
-			throw new Error('Email service not configured: RESEND_API_KEY is missing');
-		}
+  static async sendEmail({ to, subject, html }: EmailOptions): Promise<void> {
+    // Use Ethereal for development (no domain needed)
+    if (process.env.NODE_ENV === 'development' || process.env.USE_ETHEREAL === 'true') {
+      try {
+        const transporter = await getEtherealTransporter();
+        const info = await transporter.sendMail({
+          from: '"SavFi" <noreply@ethereal.email>',
+          to,
+          subject,
+          html
+        });
+        console.log('✅ Email sent via Ethereal:', info.messageId);
+        console.log('📧 Preview URL:', nodemailer.getTestMessageUrl(info));
+        return;
+      } catch (error) {
+        console.error('❌ Ethereal email error:', error);
+        throw new Error('Failed to send email via Ethereal');
+      }
+    }
 
-		try {
-			await resend.emails.send({
-				from: process.env.RESEND_FROM_EMAIL || 'noreply@savfi.com',
-				to,
-				subject,
-				html
-			});
-		} catch (error) {
-			console.error('Email send error:', error);
-			throw new Error('Failed to send email');
-		}
-	}
+    // Use Resend for production (requires verified domain)
+    if (!process.env.RESEND_API_KEY) {
+      console.error('CRITICAL: RESEND_API_KEY environment variable is not set!');
+      console.error('Please add RESEND_API_KEY to your Vercel environment variables.');
+      throw new Error('Email service not configured: RESEND_API_KEY is missing');
+    }
 
-	static async sendOTPEmail(email: string, otp: string, type: string = 'registration'): Promise<void> {
-		const subject = type === 'registration'
-			? 'Verify Your SavFi Account - OTP Code'
-			: 'Your SavFi Verification Code';
+    try {
+      await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL || 'noreply@savfi.com',
+        to,
+        subject,
+        html
+      });
+      console.log('✅ Email sent via Resend');
+    } catch (error) {
+      console.error('❌ Resend email error:', error);
+      throw new Error('Failed to send email');
+    }
+  }
 
-		const html = `
-			<!DOCTYPE html>
-			<html>
-			<head>
-				<meta charset="utf-8">
-				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<title>Verify Your Account</title>
-			</head>
-			<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-				<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-					<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-						<h1 style="color: white; margin: 0;">SavFi</h1>
-					</div>
-					<div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-						<h2 style="color: #333;">Verify Your Email Address</h2>
-						<p>Thank you for signing up with SavFi! To complete your registration, please use the following OTP code:</p>
-						<div style="background: white; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; margin: 20px 0; border: 2px dashed #667eea; border-radius: 5px;">
-							${otp}
-						</div>
-						<p><strong>This code will expire in 10 minutes.</strong></p>
-						<p>If you didn't request this code, please ignore this email.</p>
-						<p style="margin-top: 30px; font-size: 12px; color: #888;">
-							This is an automated message. Please do not reply to this email.
-						</p>
-					</div>
-				</div>
-			</body>
-			</html>
-		`;
+  static async sendOTPEmail(email: string, otp: string, type: string = 'registration'): Promise<void> {
+    const subject = type === 'registration'
+      ? 'Verify Your SavFi Account - OTP Code'
+      : 'Your SavFi Verification Code';
 
-		await this.sendEmail({ to: email, subject, html });
-	}
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verify Your Account</title>
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0;">SavFi</h1>
+          </div>
+          <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+            <h2 style="color: #333;">Verify Your Email Address</h2>
+            <p>Thank you for signing up with SavFi! To complete your registration, please use the following OTP code:</p>
+            <div style="background: white; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; margin: 20px 0; border: 2px dashed #667eea; border-radius: 5px;">
+              ${otp}
+            </div>
+            <p><strong>This code will expire in 10 minutes.</strong></p>
+            <p>If you didn't request this code, please ignore this email.</p>
+            <p style="margin-top: 30px; font-size: 12px; color: #888;">
+              This is an automated message. Please do not reply to this email.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({ to: email, subject, html });
+  }
 }

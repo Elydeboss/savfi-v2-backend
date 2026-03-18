@@ -15,42 +15,22 @@ router.get(
 	}),
 	async (req: any, res) => {
 		try {
-			const googleProfile = req.user;
+			// Passport strategy already created/found the user and attached it to req.user
+			const user = req.user;
 
-			if (!googleProfile || !googleProfile.email) {
-				console.error('❌ Google OAuth callback error: No email in profile');
-				return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_email`);
+			if (!user) {
+				console.error('❌ Google OAuth callback error: No user in request');
+				return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
 			}
 
-			// Try to use EvtStore command first
-			try {
-				const { getUserCommands } = await import('../domain/domain');
-				const userCommands = await getUserCommands();
+			console.log('✅ Google OAuth successful:', {
+				userId: user._id,
+				email: user.email,
+				username: user.username,
+			});
 
-				// Try to create user via EvtStore (will fail if user exists)
-				await userCommands['create-user-oauth'](googleProfile.email, {
-					email: googleProfile.email,
-					username: googleProfile.email.split('@')[0], // Will be made unique by command
-					provider: 'google',
-					providerId: googleProfile.id,
-				});
-
-				console.log('✅ Google OAuth user created via EvtStore:', {
-					email: googleProfile.email,
-					providerId: googleProfile.id,
-				});
-			} catch (commandError: any) {
-				// User might already exist, that's okay - the user was likely created
-				// by the legacy Passport strategy or in a previous OAuth flow
-				if (commandError.message?.includes('User already exists')) {
-					console.log('ℹ️ User already exists, proceeding with authentication');
-				} else {
-					throw commandError; // Re-throw other errors
-				}
-			}
-
-			// Generate JWT token
-			const token = generateToken(googleProfile);
+			// Generate JWT token with the actual User object from MongoDB
+			const token = generateToken(user);
 
 			// Redirect to frontend with token
 			res.redirect(
