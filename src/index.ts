@@ -13,6 +13,7 @@ import savingsRoutes from './routes/savings';
 import passport from './config/oauth';
 import { apiLimiter } from './middleware/rateLimiter';
 import { startAllProjections } from './domain/handlers/projections';
+import { responseWrapper } from './utils/response';
 
 // Load environment variables
 dotenv.config();
@@ -101,6 +102,9 @@ app.use(async (req, res, next) => {
 
 // Apply rate limiting to all API routes
 app.use('/api/', apiLimiter);
+
+// Apply response wrapper to standardize API responses
+app.use('/api/', responseWrapper);
 
 // Routes
 app.get('/', (req: Request, res: Response) => {

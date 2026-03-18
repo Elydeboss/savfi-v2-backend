@@ -101,7 +101,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const result = await OTPService.createAndSendOTP(email, 'registration');
 
     if (!result.success) {
-      res.status(500).json({ error: 'Failed to send verification email. Please try again.' });
+      console.error('❌ OTP creation failed for email:', email);
+      console.error('❌ Error message:', result.message);
+      console.error('❌ Check RESEND_API_KEY environment variable');
+      res.status(500).json({
+        error: 'Registration failed. Please try again later.',
+        details: process.env.NODE_ENV === 'development' ? result.message : undefined
+      });
       return;
     }
 
