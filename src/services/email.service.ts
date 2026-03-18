@@ -11,8 +11,10 @@ interface EmailOptions {
 export class EmailService {
 	static async sendEmail({ to, subject, html }: EmailOptions): Promise<void> {
 		if (!process.env.RESEND_API_KEY) {
-			console.error('Resend API key not configured');
-			throw new Error('Email service not configured');
+			console.error('CRITICAL: RESEND_API_KEY environment variable is not set!');
+			console.error('Emails cannot be sent without this key.');
+			console.error('Please add RESEND_API_KEY to your Vercel environment variables.');
+			throw new Error('Email service not configured: RESEND_API_KEY is missing');
 		}
 
 		try {

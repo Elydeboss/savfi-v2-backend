@@ -7,6 +7,7 @@ import { generateToken, hashPassword, comparePassword, generateReferralCode } fr
 import { registerSchema, loginSchema, updateProfileSchema, changePasswordSchema, connectWalletSchema } from '../utils/validation';
 import { generateWalletAddress } from '../utils/wallet';
 import { OTPService } from '../services/otp.service';
+import { EmailService } from '../services/email.service';
 
 // Register user - sends OTP for verification
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -45,15 +46,20 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check if there's already a pending registration for this email
+    // Check if there's already a pending OTP for this email
     const pendingOTP = await OTP.findOne({ email, type: 'registration' });
     if (pendingOTP) {
-      res.status(400).json({
-        error: 'An OTP has already been sent to this email. Please check your inbox or request a new OTP.',
-        requiresOTP: true,
-        email
-      });
-      return;
+      // OTP exists but user might not have received the email
+      // Re-send the email instead of blocking the user
+      const otp = pendingOTP.otp;
+      try {
+        await EmailService.sendOTPEmail(email, otp, 'registration');
+        console.log(`Re-sent OTP email to ${email}`);
+      } catch (emailError) {
+        console.error('Resend OTP email error:', emailError);
+        // Still allow proceeding - the OTP exists in the database
+      }
+      // Continue with the registration flow - user can verify with existing OTP
     }
 
     // Check if there's pending registration data
