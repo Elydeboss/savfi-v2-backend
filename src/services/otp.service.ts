@@ -26,8 +26,12 @@ export class OTPService {
 				attempts: 0
 			});
 
-			// Send email
-			await EmailService.sendOTPEmail(email, otp, type);
+			// TODO: Uncomment when email service is configured
+			// // Send email
+			// await EmailService.sendOTPEmail(email, otp, type);
+
+			// Log OTP to console for development (remove in production)
+			console.log(`OTP for ${email} (${type}): ${otp}`);
 
 			return { success: true, message: 'OTP sent successfully' };
 		} catch (error) {

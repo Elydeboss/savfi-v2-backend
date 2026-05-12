@@ -52,13 +52,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       // OTP exists but user might not have received the email
       // Re-send the email instead of blocking the user
       const otp = pendingOTP.otp;
-      try {
-        await EmailService.sendOTPEmail(email, otp, 'registration');
-        console.log(`Re-sent OTP email to ${email}`);
-      } catch (emailError) {
-        console.error('Resend OTP email error:', emailError);
-        // Still allow proceeding - the OTP exists in the database
-      }
+      // TODO: Uncomment when email service is configured
+      // try {
+      //   await EmailService.sendOTPEmail(email, otp, 'registration');
+      //   console.log(`Re-sent OTP email to ${email}`);
+      // } catch (emailError) {
+      //   console.error('Resend OTP email error:', emailError);
+      //   // Still allow proceeding - the OTP exists in the database
+      // }
+      console.log(`OTP for ${email}: ${otp} (email disabled)`);
       // Continue with the registration flow - user can verify with existing OTP
     }
 
