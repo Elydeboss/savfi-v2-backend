@@ -50,6 +50,8 @@ const oauth_1 = __importDefault(require("./routes/oauth"));
 const savings_1 = __importDefault(require("./routes/savings"));
 const oauth_2 = __importDefault(require("./config/oauth"));
 const rateLimiter_1 = require("./middleware/rateLimiter");
+const projections_1 = require("./domain/handlers/projections");
+const response_1 = require("./utils/response");
 // Load environment variables
 dotenv_1.default.config();
 // Create Express app
@@ -128,6 +130,8 @@ app.use(async (req, res, next) => {
 });
 // Apply rate limiting to all API routes
 app.use('/api/', rateLimiter_1.apiLimiter);
+// Apply response wrapper to standardize API responses
+app.use('/api/', response_1.responseWrapper);
 // Routes
 app.get('/', (req, res) => {
     res.json({
@@ -232,6 +236,20 @@ if (!process.env.VERCEL) {
         try {
             // Connect to MongoDB
             await (0, database_1.default)();
+            // Start EvtStore projection handlers if enabled
+            if (process.env.EVTSTORE_ENABLED === 'true') {
+                try {
+                    await (0, projections_1.startAllProjections)();
+                    console.log('✅ EvtStore projection handlers started');
+                }
+                catch (error) {
+                    console.error('❌ Failed to start EvtStore projection handlers:', error);
+                    // Don't fail the app startup, just log the error
+                }
+            }
+            else {
+                console.log('ℹ️ EvtStore projection handlers not enabled (set EVTSTORE_ENABLED=true to enable)');
+            }
             // Start listening
             app.listen(env_1.env.PORT, () => {
                 console.log(`🚀 Server running on port ${env_1.env.PORT}`);

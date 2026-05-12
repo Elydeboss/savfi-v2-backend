@@ -6,7 +6,9 @@ const auth_1 = require("../middleware/auth");
 const rateLimiter_1 = require("../middleware/rateLimiter");
 const router = (0, express_1.Router)();
 // Public routes with rate limiting
-router.post('/register', rateLimiter_1.authLimiter, authController_1.register);
+router.post('/register', rateLimiter_1.authLimiter, authController_1.register); // Sends OTP
+router.post('/verify-otp', rateLimiter_1.authLimiter, authController_1.verifyOTPAndRegister); // Creates user after OTP
+router.post('/resend-otp', rateLimiter_1.authLimiter, authController_1.resendOTP); // Resend OTP
 router.post('/login', rateLimiter_1.authLimiter, authController_1.login);
 // Protected routes (require authentication)
 router.get('/me', auth_1.authenticate, authController_1.getCurrentUser);

@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
     "prebuild": "echo 'Skipping evtstore sync - using existing evtstore-lib'",
-    "build": "tsc",
+    "build": "tsc && npm run postbuild",
+    "postbuild": "mv dist/src/* dist/ && rm -rf dist/src || true",
     "start": "node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
