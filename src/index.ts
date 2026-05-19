@@ -10,6 +10,11 @@ import { env } from './config/env';
 import authRoutes from './routes/auth';
 import oauthRoutes from './routes/oauth';
 import savingsRoutes from './routes/savings';
+import v1CompatRoutes from './routes/v1-compat';
+import walletRoutes from './routes/wallet';
+import transactionRoutes from './routes/transactions';
+import depositRoutes from './routes/deposits';
+import withdrawalRoutes from './routes/withdrawals';
 import passport from './config/oauth';
 import { apiLimiter } from './middleware/rateLimiter';
 import { startAllProjections } from './domain/handlers/projections';
@@ -165,6 +170,14 @@ app.get('/health', async (req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/oauth', oauthRoutes);
 app.use('/api/savings', savingsRoutes);
+
+// V1 Compatibility Routes - These maintain backward compatibility with SavFi v1 frontend
+app.use('/accounts', v1CompatRoutes); // Maps /accounts/* to auth operations
+app.use('/wallets', walletRoutes); // Wallet endpoints
+app.use('/wallet', walletRoutes); // Single wallet endpoint (v1 uses both)
+app.use('/transactions', transactionRoutes); // Transaction endpoints
+app.use('/deposit', depositRoutes); // Deposit endpoints
+app.use('/withdrawal', withdrawalRoutes); // Withdrawal endpoints
 
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: any) => {

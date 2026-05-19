@@ -5,6 +5,8 @@ export interface IUser extends Document {
   email: string;
   username: string;
   password: string;
+  firstName?: string;
+  lastName?: string;
   provider?: 'email' | 'google' | 'apple';
   providerId?: string;
   emailVerified?: boolean;
@@ -19,9 +21,13 @@ export interface IUser extends Document {
     email?: string;
   };
   phantomWallet?: string;
+  walletAddress?: string;
+  walletBalance?: number;
   profilePicture?: string;
   phoneNumber?: string;
   country?: string;
+  state?: string;
+  bio?: string;
   dateOfBirth?: Date;
   ninVerified: boolean;
   kycVerified: boolean;
@@ -59,6 +65,14 @@ const userSchema = new Schema<IUser>(
       minlength: 3,
       maxlength: 30,
     },
+    firstName: {
+      type: String,
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      trim: true,
+    },
     password: {
       type: String,
       minlength: 6,
@@ -91,6 +105,16 @@ const userSchema = new Schema<IUser>(
       sparse: true,
       trim: true,
     },
+    walletAddress: {
+      type: String,
+      sparse: true,
+      trim: true,
+    },
+    walletBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     profilePicture: {
       type: String,
     },
@@ -99,6 +123,14 @@ const userSchema = new Schema<IUser>(
       trim: true,
     },
     country: {
+      type: String,
+      trim: true,
+    },
+    state: {
+      type: String,
+      trim: true,
+    },
+    bio: {
       type: String,
       trim: true,
     },

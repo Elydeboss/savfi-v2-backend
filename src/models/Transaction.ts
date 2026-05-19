@@ -7,9 +7,13 @@ export interface ITransaction extends Document {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   savingsPlanId?: mongoose.Types.ObjectId;
+  planId?: string;
   type: TransactionType;
   amount: number;
+  usdtAmount?: number;
   status: TransactionStatus;
+  source?: string;
+  reference?: string;
   transactionHash?: string;
   signature?: string;
   fromAddress?: string;
@@ -17,6 +21,14 @@ export interface ITransaction extends Document {
   blockchainConfirmed: boolean;
   confirmationCount?: number;
   description?: string;
+  fee?: number;
+  network?: string;
+  paymentMethod?: string;
+  bankDetails?: {
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+  };
   metadata?: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
@@ -42,10 +54,20 @@ const transactionSchema = new Schema<ITransaction>(
       type: Number,
       required: true,
     },
+    usdtAmount: {
+      type: Number,
+    },
     status: {
       type: String,
       enum: ['pending', 'completed', 'failed', 'processing'],
       default: 'pending',
+    },
+    source: {
+      type: String,
+    },
+    reference: {
+      type: String,
+      sparse: true,
     },
     transactionHash: {
       type: String,
@@ -70,6 +92,20 @@ const transactionSchema = new Schema<ITransaction>(
     },
     description: {
       type: String,
+    },
+    fee: {
+      type: Number,
+    },
+    network: {
+      type: String,
+    },
+    paymentMethod: {
+      type: String,
+    },
+    bankDetails: {
+      bankName: String,
+      accountNumber: String,
+      accountName: String,
     },
     metadata: {
       type: Schema.Types.Mixed,

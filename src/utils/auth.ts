@@ -54,3 +54,17 @@ export const generateReferralCode = (username: string): string => {
   const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
   return `${prefix}${randomStr}`;
 };
+
+// Generate refresh token (longer-lived token for v1 compatibility)
+export const generateRefreshToken = (user: IUser): string => {
+  const payload = {
+    userId: user._id.toString(),
+    email: user.email,
+    type: 'refresh'
+  };
+
+  const secret = getJwtSecret();
+  const expiresIn = '30d'; // Refresh tokens last longer
+
+  return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions);
+};
