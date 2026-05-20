@@ -36,7 +36,7 @@ COPY package*.json ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Copy built files from builder
-COPY --from=builder --chown=nodejs:nodejs /app/src/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 
 # Create logs directory with proper permissions
 RUN mkdir -p logs && chown -R nodejs:nodejs logs
