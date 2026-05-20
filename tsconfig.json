@@ -9,7 +9,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "moduleResolution": "bundler",
+    "moduleResolution": "node10",
     "allowSyntheticDefaultImports": true,
     "sourceMap": true,
     "baseUrl": ".",
