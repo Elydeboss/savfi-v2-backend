@@ -104,6 +104,99 @@ router.post('/register/', authLimiter, async (req: any, res: any) => {
 });
 
 /**
+ * POST /accounts/verify-otp/
+ * V1 Compatibility: Verifies OTP and completes registration
+ * V2 Equivalent: POST /api/auth/verify-otp
+ */
+router.post('/verify-otp/', authLimiter, async (req: any, res: any) => {
+  try {
+    const { email, otp } = req.body;
+
+    // Validate required fields
+    if (!email || !otp) {
+      return res.status(400).json({
+        detail: 'Email and OTP are required'
+      });
+    }
+
+    const { PendingRegistration } = await import('../models/PendingRegistration');
+    const { hashPassword, generateReferralCode, generateToken, generateRefreshToken } = await import('../utils/auth');
+    const { generateWalletAddress } = await import('../utils/wallet');
+    const User = (await import('../models/User')).default;
+
+    // Find pending registration
+    const pending = await PendingRegistration.findOne({ email });
+
+    if (!pending) {
+      return res.status(404).json({
+        detail: 'No pending registration found. Please register first.'
+      });
+    }
+
+    // Check if OTP is expired
+    if (pending.otpExpiresAt < new Date()) {
+      await PendingRegistration.deleteOne({ email });
+      return res.status(400).json({
+        detail: 'OTP has expired. Please request a new one.'
+      });
+    }
+
+    // Verify OTP
+    if (pending.otp !== otp) {
+      return res.status(400).json({
+        detail: 'Invalid OTP. Please try again.'
+      });
+    }
+
+    // Check if user already exists (double check)
+    const emailExists = await User.findOne({ email });
+    if (emailExists) {
+      await PendingRegistration.deleteOne({ email });
+      return res.status(400).json({
+        detail: 'This email is already registered. Please login.'
+      });
+    }
+
+    // Hash password and create user
+    const hashedPassword = await hashPassword(pending.password);
+    const userReferralCode = generateReferralCode(pending.username);
+    const walletAddress = generateWalletAddress();
+
+    const user = new User({
+      email: pending.email,
+      username: pending.username,
+      password: hashedPassword,
+      referralCode: userReferralCode,
+      phantomWallet: walletAddress,
+      emailVerified: true,
+      provider: 'email'
+    });
+
+    await user.save();
+
+    // Delete pending registration
+    await PendingRegistration.deleteOne({ email });
+
+    // Generate tokens
+    const token = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    // Return v1 expected format
+    res.status(201).json({
+      access: token,
+      refresh: refreshToken,
+      username: user.username,
+      email: user.email,
+      id: user._id,
+      walletAddress: walletAddress
+    });
+  } catch (error: any) {
+    console.error('V1 Verify OTP error:', error);
+    res.status(500).json({ detail: 'Server error during OTP verification' });
+  }
+});
+
+/**
  * POST /accounts/login/
  * V1 Compatibility: Returns JWT tokens and user info
  * V2 Equivalent: POST /api/auth/login
