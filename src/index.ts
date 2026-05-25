@@ -172,6 +172,7 @@ app.use('/api/auth/oauth', oauthRoutes);
 app.use('/api/savings', savingsRoutes);
 
 // V1 Compatibility Routes - These maintain backward compatibility with SavFi v1 frontend
+app.use('/api/accounts', v1CompatRoutes); // Frontend sends /api/accounts/register/
 app.use('/accounts', v1CompatRoutes); // Maps /accounts/* to auth operations
 app.use('/wallets', walletRoutes); // Wallet endpoints
 app.use('/wallet', walletRoutes); // Single wallet endpoint (v1 uses both)
